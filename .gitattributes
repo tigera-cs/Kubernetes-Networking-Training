@@ -1,0 +1,17 @@
+# Normalize line endings for text files, checked out with LF
+* text=auto eol=lf
+
+# Markdown
+*.md text
+
+# Treat images and other assets as binary (no EOL conversion / diffing)
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.JPG binary
+*.JPEG binary
+*.gif binary
+*.svg text
+*.pdf binary
+*.pptx binary
+*.zip binary

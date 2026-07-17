@@ -1,0 +1,25 @@
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editor / IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Python (helper scripts, if any)
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+
+# Local scratch / temp
+*.tmp
+*.log
+*.bak
+scratch/
+tmp/
