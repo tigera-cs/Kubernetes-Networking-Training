@@ -33,16 +33,16 @@ To ssh into the lab instances, type the following commands. The associated IP ad
 
 ## Lab modules
 
-[1. Install Calico Enterprise](https://github.com/Pooriya-a/CalicoEnterprise-Networking-Training/tree/main/1.%20Install%20Calico%20Enterprise)
+[1. Install Calico Enterprise](./1.%20Install%20Calico%20Enterprise)
 
-[2. Implement pod networking using Calico Enterprise CNI and IPAM](https://github.com/Pooriya-a/CalicoEnterprise-Networking-Training/tree/main/2.%20Implement%20pod%20networking%20using%20Calico%20Enterprise%20CNI%20and%20IPAM)
+[2. Implement pod networking using Calico Enterprise CNI and IPAM](./2.%20Implement%20pod%20networking%20using%20Calico%20Enterprise%20CNI%20and%20IPAM)
 
-[3. Cross Node Connectivity](https://github.com/Pooriya-a/CalicoEnterprise-Networking-Training/tree/main/3.%20Cross%20Node%20Connectivity)
+[3. Cross Node Connectivity](./3.%20Cross%20Node%20Connectivity)
 
-[4. Kubernetes Services and CE Service Advertisement](https://github.com/Pooriya-a/CalicoEnterprise-Networking-Training/tree/main/4.%20Kubernetes%20Services%20and%20CE%20Service%20Advertisement)
+[4. Kubernetes Services and CE Service Advertisement](./4.%20Kubernetes%20Services%20and%20CE%20Service%20Advertisement)
 
-[5. Calico Enterprise Egress Gateway](https://github.com/Pooriya-a/CalicoEnterprise-Networking-Training/tree/main/5.%20Calico%20Enterprise%20Egress%20Gateway)
+[5. Calico Enterprise Egress Gateway](./5.%20Calico%20Enterprise%20Egress%20Gateway)
 
-[6. Calico Ingress Gateway](https://github.com/Pooriya-a/CalicoEnterprise-Networking-Training/tree/main/6.%20Calico%20Ingress%20Gateway)
+[6. Calico Ingress Gateway](./6.%20Calico%20Ingress%20Gateway)
 
-[7. Implement Calico Enterprise eBPF](https://github.com/Pooriya-a/CalicoEnterprise-Networking-Training/tree/main/7.%20Implement%20Calico%20Enterprise%20eBPF)
+[7. Implement Calico Enterprise eBPF](./7.%20Implement%20Calico%20Enterprise%20eBPF)
