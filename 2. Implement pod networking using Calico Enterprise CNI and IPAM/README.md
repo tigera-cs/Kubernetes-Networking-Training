@@ -24,7 +24,9 @@ As discussed in the previous lab, upstream Kubernetes by default does not provid
 * Examining what the network looks like from the perspecitve of a pod (the pod network namespace)
 * Examining what the network looks like from the perspecitve of the host (the host network namespace)
 
-1. Each pod gets its own Linux network namespace, which you can think of as giving a pod an isolated copy of the Linux networking stack. Let's start by examining what the network looks like from the pod's point of view. Find the name and location of the customer pod using the following command.
+#### Find the customer pod's name and location
+
+Each pod gets its own Linux network namespace, which you can think of as giving a pod an isolated copy of the Linux networking stack. Let's start by examining what the network looks like from the pod's point of view. Find the name and location of the customer pod using the following command.
 
 ```
 kubectl get pods -n yaobank -l app=customer -o wide
@@ -35,13 +37,17 @@ customer-687b8d8f74-lmzqz   1/1     Running   0          129m   10.48.0.20   ip-
 ```
 Note the node on which the pod is running on (`ip-10-0-1-31.eu-west-1.compute.internal` in this example)
 
-2. Use `kubectl` to exec into the pod so we can check the pod networking details. 
+#### Exec into the customer pod
+
+Use `kubectl` to exec into the pod so we can check the pod networking details. 
 
 ```
 kubectl exec -ti -n yaobank $(kubectl get pods -n yaobank -l app=customer -o name) bash
 ```
 
-3. First we will use `ip addr` to list the addresses and associated network interfaces that the pod sees.
+#### List the pod's addresses and interfaces
+
+First we will use `ip addr` to list the addresses and associated network interfaces that the pod sees.
 
 ```
 ip addr
@@ -62,7 +68,9 @@ The key things to note in this output are:
 * There is a `lo` loopback interface with an IP address of `127.0.0.1`. This is the standard loopback interface that every network namespace has by default. You can think of it as `localhost` for the pod itself.
 * There is an `eth0` interface which has the pods actual IP address, `10.48.0.20`. Notice this matches the IP address that `kubectl get pods` returned earlier.
 
-4. Next let's look more closely at the interfaces using `ip link`.  We will use the `-c` option, which colours the output to make it easier to read.
+#### Inspect the pod's interfaces with ip link
+
+Next let's look more closely at the interfaces using `ip link`.  We will use the `-c` option, which colours the output to make it easier to read.
 
 ```
 ip -c link
@@ -80,7 +88,9 @@ Look at the `eth0` part of the output. The key things to note are:
 * `eth0` is a link to the host network namespace (indicated by `link-netnsid 0`). i.e. It is the pod's side of the veth pair (virtual ethernet pair) that connects the pod to the host's networking.
 * The `@if28` at the end of the interface name is the interface number of the other end of the veth pair within the hosts' network namespaces. In this example, interface number 28.  Remember this for later. We will take look at the other end of the veth pair shortly.
 
-5. Finally, let's look at the routes the pod sees.
+#### View the pod's routes
+
+Finally, let's look at the routes the pod sees.
 
 ```
 ip route
@@ -97,13 +107,17 @@ We've finished our tour of the pod's view of the network. Let's exit out of the 
 exit
 ```
 
-6. To examine the network from the node prespective, we will need to connect to the node where the customer pod is running. In our example earlier, this was `ip-10-0-1-31.eu-west-1.compute.internal`, which refers to worker2. SSH into worker2. (Please note that the your customer pod might run on a different node. SSH into the worker node where customer pod is running in your lab)
+#### SSH into the node hosting the pod
+
+To examine the network from the node prespective, we will need to connect to the node where the customer pod is running. In our example earlier, this was `ip-10-0-1-31.eu-west-1.compute.internal`, which refers to worker2. SSH into worker2. (Please note that the your customer pod might run on a different node. SSH into the worker node where customer pod is running in your lab)
 
 ```
 ssh worker2
 ```
 
-7. Now we're on the node hosting the customer pod. we'll examine the other end of the veth pair. In our example output earlier, the `@if28` indicated it should be interface number 28 in the host network namespace. (Your interface numbers may be different, but you should be able to follow along the same logic.)
+#### Examine the host end of the veth pair
+
+Now we're on the node hosting the customer pod. we'll examine the other end of the veth pair. In our example output earlier, the `@if28` indicated it should be interface number 28 in the host network namespace. (Your interface numbers may be different, but you should be able to follow along the same logic.)
 
 ```
 ip -c link
@@ -159,11 +173,15 @@ ip -c link
     link/ether ee:ee:ee:ee:ee:ee brd ff:ff:ff:ff:ff:ff link-netnsid 19
 ```
 
-8. Looking at interface number 28 in this example we see `caliaa83cb3d2b3` which links to `@if3` in network namespace ID 18 (the customer pod's network namespace).  You may recall that interface 3 in the pod's network namespace was `eth0`, so this looks exactly as expected for the veth pair that connects the customer pod to the host network namespace.  
+#### Match the host veth interface to the pod
+
+Looking at interface number 28 in this example we see `caliaa83cb3d2b3` which links to `@if3` in network namespace ID 18 (the customer pod's network namespace).  You may recall that interface 3 in the pod's network namespace was `eth0`, so this looks exactly as expected for the veth pair that connects the customer pod to the host network namespace.  
 You can also see the host end of the veth pairs to other pods running on this node, all beginning with `cali`.
 
 
-9. Let examine the node routing table. First let's remind ourselves of the `customer` pod's IP address.
+#### Recall the customer pod's IP address
+
+Let examine the node routing table. First let's remind ourselves of the `customer` pod's IP address.
 
 ```
 kubectl get pods -n yaobank -l app=customer -o wide
@@ -173,7 +191,9 @@ NAME                        READY   STATUS    RESTARTS   AGE    IP           NOD
 customer-687b8d8f74-lmzqz   1/1     Running   0          148m   10.48.0.20   ip-10-0-1-31.eu-west-1.compute.internal   <none>           <none>
 ```
 
-10. Now lets look at the routes on the node, where the customer pod is running. SSH into the node.
+#### View the node's routing table
+
+Now lets look at the routes on the node, where the customer pod is running. SSH into the node.
 
 ```
 ip route
@@ -210,17 +230,27 @@ blackhole 10.48.0.0/26 proto bird
 
 In this example output, we can see the route to the customer pod's IP `10.48.0.20` is via the `caliaa83cb3d2b3` interface, the host end of the veth pair for the customer pod. You can see similar routes for each of the IPs of the other pods hosted on this node. These routes tell Linux where to send the traffic when the traffic is destined to local pods on the node.
 
-11. We can also see several routes labelled `proto bird`. These are routes to pods on other nodes that Calico has learned over BGP. 
+#### Understand the BGP-learned routes
+
+We can also see several routes labelled `proto bird`. These are routes to pods on other nodes that Calico has learned over BGP. 
 
 To understand this better, consider this route in the example output above `10.48.0.192/26 via 10.0.1.30 dev ens5 proto bird`. It indicates pods with IP addresses falling within the `10.48.0.192/26` CIDR can be reached via `10.0.1.30` through the `ens5` network interface (the host's main interface to the rest of the network). You should see similar routes in your output for each node.
 
-12. Calico uses route aggregation to reduce the number of routes when possible. (e.g. `/26` in this example). The `/26` corresponds to the default block size that Calico IPAM (IP Address Management) allocates on demand as nodes need pod IP addresses. (If desired, the block size can be configured in Calico IPAM settings.)  
+#### Understand Calico route aggregation
 
-13. You can also see the `blackhole 10.48.0.0/26 proto bird` route. The `10.48.0.0/26` corresponds to the block of IPs that Calico IPAM allocated on demand for this node. This is the block from which each of the local pods got their IP addresses. The blackhole route tells Linux that if it can't find a more specific route for an individual IP in that block then it should discard the packet (rather than sending it out through the default route to the network). You will only see traffic that hits this rule if something is trying to send traffic to a pod IP that doesn't exist, for example sending traffic to a recently deleted pod.
+Calico uses route aggregation to reduce the number of routes when possible. (e.g. `/26` in this example). The `/26` corresponds to the default block size that Calico IPAM (IP Address Management) allocates on demand as nodes need pod IP addresses. (If desired, the block size can be configured in Calico IPAM settings.)  
 
-14. If Calico IPAM runs out of blocks to allocate to nodes, then it will use unused IPs from other nodes' blocks. These will be announced by calico as more specific routes, so traffic to pods will always find its way to the right host.
+#### Understand the blackhole route
 
-15. Exit from the worker node's ssh and get back to bastion host terminal. 
+You can also see the `blackhole 10.48.0.0/26 proto bird` route. The `10.48.0.0/26` corresponds to the block of IPs that Calico IPAM allocated on demand for this node. This is the block from which each of the local pods got their IP addresses. The blackhole route tells Linux that if it can't find a more specific route for an individual IP in that block then it should discard the packet (rather than sending it out through the default route to the network). You will only see traffic that hits this rule if something is trying to send traffic to a pod IP that doesn't exist, for example sending traffic to a recently deleted pod.
+
+#### Understand IP block borrowing across nodes
+
+If Calico IPAM runs out of blocks to allocate to nodes, then it will use unused IPs from other nodes' blocks. These will be announced by calico as more specific routes, so traffic to pods will always find its way to the right host.
+
+#### Return to the bastion host
+
+Exit from the worker node's ssh and get back to bastion host terminal. 
 
 ```
 exit
@@ -255,7 +285,9 @@ In this section, we will:
 * Create a new IPPool
 * Update the yaobank deployments to receive IP addresses from the new IPPool
 
-1. Let's start by listing the configured IPPool in this cluster and getting familiar with some of the configuration parameters in the IPPool.
+#### List the existing IPPool
+
+Let's start by listing the configured IPPool in this cluster and getting familiar with some of the configuration parameters in the IPPool.
 
 ```
 kubectl get ippools default-ipv4-ippool -o yaml
@@ -305,7 +337,9 @@ We have the following address ranges configured in this cluster.
 | 10.49.0.0/16 | Kubernetes Service Network (via kubeadm `--service-cidr`) |
 
 
-2. Let's create a new IPPool by applying the following manifest.
+#### Create a new IPPool
+
+Let's create a new IPPool by applying the following manifest.
 
 ```
 kubectl apply -f -<<EOF
@@ -328,7 +362,9 @@ You should receive an output similar to the following.
 ippool.projectcalico.org/pool2-ipv4-ippool created
 ```
 
-3. Check the IPPools that exist in the cluster.
+#### Verify the new IPPool exists
+
+Check the IPPools that exist in the cluster.
 
 ```
 calicoctl get ippools
@@ -340,9 +376,13 @@ pool2-ipv4-ippool     10.48.128.0/24   all()
 ```
 
 
-4. There is a new version of the yaobank application that is configured for specific IP address treatment. We have configured the yaobank manifest with the necessary annotation to use the newly created IPPool. Note that annotations are configured only for summary and database deployment. Customer deployment can receive its IP address from any IPPool. Examine the annotation section of the deployments below and get yourself familiar with the configurations. 
+#### Review the new yaobank IPPool annotations
 
-5. Before deploying the new version of yaobank application, let's delete the old version to avoid any conflicts. 
+There is a new version of the yaobank application that is configured for specific IP address treatment. We have configured the yaobank manifest with the necessary annotation to use the newly created IPPool. Note that annotations are configured only for summary and database deployment. Customer deployment can receive its IP address from any IPPool. Examine the annotation section of the deployments below and get yourself familiar with the configurations. 
+
+#### Delete the old yaobank deployment
+
+Before deploying the new version of yaobank application, let's delete the old version to avoid any conflicts. 
 
 ```
 kubectl delete namespace yaobank
@@ -352,7 +392,9 @@ You should receive an output similar to the following. This command might take a
 ```
 namespace "yaobank" deleted
 ```
-6. Now implement the new version of the app.
+#### Deploy the new version of yaobank
+
+Now implement the new version of the app.
 
 ```
 kubectl apply -f -<<EOF
@@ -547,7 +589,9 @@ serviceaccount/customer created
 deployment.apps/customer created
 ```
 
-7. Let's check on the Pods' ip address assignments.
+#### Verify the pods' IP address assignments
+
+Let's check on the Pods' ip address assignments.
 
 ```
 kubectl get pod -n yaobank -o wide
@@ -566,7 +610,9 @@ You can see that Pod IP address assignment is aligned with the IPAM configuratio
 
 https://projectcalico.docs.tigera.io/networking/assign-ip-addresses-topology
 
-8. To check the IPAM allocations in the cluster, run the following command.
+#### Check the IPAM allocations
+
+To check the IPAM allocations in the cluster, run the following command.
 
 ```
 calicoctl ipam show
@@ -582,7 +628,9 @@ calicoctl ipam show
 +----------+----------------+-----------+------------+-----------+
 ```
 
-9. Use `calicoctl` help to learn about subcommands available to `calicoctl ipam`. Please note that Tigera APIServer enables you to use Kubernetes native command line utility `kubectl` to manage most of the aspects of Calico Enterprise (CE) resources. However, there are some aspects of CE that can't be managed by `kubectl` and `calicoctl` needs to be used. Tere is no equivalent capability through `kubectl` to find the information that is provided below through `calicoctl ipam`.
+#### Explore calicoctl ipam subcommands
+
+Use `calicoctl` help to learn about subcommands available to `calicoctl ipam`. Please note that Tigera APIServer enables you to use Kubernetes native command line utility `kubectl` to manage most of the aspects of Calico Enterprise (CE) resources. However, there are some aspects of CE that can't be managed by `kubectl` and `calicoctl` needs to be used. Tere is no equivalent capability through `kubectl` to find the information that is provided below through `calicoctl ipam`.
 
 ```
 calicoctl ipam -h

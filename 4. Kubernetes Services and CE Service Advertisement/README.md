@@ -12,7 +12,7 @@ This lab provides the instructions to:
 
 
 
-## Overview
+### Overview
 
 Kubernetes is a dynamic environment and pods are not permanent resources. Pods are created and destroyed to match the desired state of your cluster. Since Pods and their IP addresses are ephemeral resources, Kubernetes provides a virtual entity called service as a permanent point of network communication between Pods. Once a service is created, it will stay there until deleted. Services provide a dns name and virtual IP address. In the context of Kubernetes service, pods are called endpoints. Kubernetes uses service controller, which it turn uses labels and selectors to keep the service endpoints updated as pods are created and destroyed. 
 
@@ -26,13 +26,17 @@ ________________________________________________________________________________
 
 There are four types of Kubernetes services. ClusterIP, NodePort, LoadBalancer, and ExternalName. kube-proxy is the Kubernetes service agent that is responsible for implementing Kubernetes services definitions in a Kubernetes environment. In this section, we will explore how kube-proxy uses iptables to implement Kubernetes service `ClusterIP`. `ClusterIP` service is the default service type and is used to expose a service on an IP address that is internal to the cluster.
 
-1. We will run this lab from `worker1` so we can explore the iptables rules that kube-proxy has set up. Run the following command to ssh into `worker1`.
+#### SSH into worker1
+
+We will run this lab from `worker1` so we can explore the iptables rules that kube-proxy has set up. Run the following command to ssh into `worker1`.
 
 ```
 ssh worker1
 ```
 
-2. Let's take a look at the services and pods in the `yaobank` kubernetes namespace. We should have three services deployed. One `NodePort` service and two `ClusterIP` services.
+#### Review the yaobank services and pods
+
+Let's take a look at the services and pods in the `yaobank` kubernetes namespace. We should have three services deployed. One `NodePort` service and two `ClusterIP` services.
 
 ```
 kubectl get svc -n yaobank
@@ -44,7 +48,9 @@ database   ClusterIP   10.49.164.49   <none>        2379/TCP       2d2h
 summary    ClusterIP   10.49.80.32    <none>        80/TCP         2d2h
 ```
 
-3. Run the following command to find the endpoints for each one of the services in yaobank namespace.
+#### Find the service endpoints
+
+Run the following command to find the endpoints for each one of the services in yaobank namespace.
 
 ```
 kubectl get endpoints -n yaobank
@@ -56,7 +62,9 @@ database   10.48.128.0:2379                  2d2h
 summary    10.48.128.1:80,10.48.128.192:80   2d2h
 ```
 
-4. List the pods in the yaobank namespace.
+#### List the yaobank pods
+
+List the pods in the yaobank namespace.
 
 ```
 kubectl get pods -n yaobank -o wide
@@ -73,7 +81,9 @@ summary-7d78c9976b-wjdd5    1/1     Running   0          2d2h   10.48.128.1     
 You can see that the IP addresses listed as the service endpoints in the previous step map to the backing pods in the yaobank namespace as expected. Each service is backed by one or more pods spread across the nodes in the cluster.
 
 
-5. Let's explore the iptables rules that implement the `summary` service. Let's start by finding the service endpoints for the `summary` `ClusterIP` service.
+#### Find the summary service endpoints
+
+Let's explore the iptables rules that implement the `summary` service. Let's start by finding the service endpoints for the `summary` `ClusterIP` service.
 
 ```
 kubectl get endpoints -n yaobank summary
@@ -84,9 +94,11 @@ NAME      ENDPOINTS                         AGE
 summary   10.48.128.1:80,10.48.128.192:80   2d2h
 ```
 
-6. As per the previous output, the `summary` service has two endpoints (`10.48.128.1` on port `80` AND `10.48.128.192` on port `80` in this example output). Starting from the `KUBE-SERVICES` iptables chain, we will traverse each chain until you get to the rule directing traffic to these endpoint IP addresses.
+#### Examine the KUBE-SERVICES chain
 
-7. Let's examine the KUBE-SERVICE chain.
+As per the previous output, the `summary` service has two endpoints (`10.48.128.1` on port `80` AND `10.48.128.192` on port `80` in this example output). Starting from the `KUBE-SERVICES` iptables chain, we will traverse each chain until you get to the rule directing traffic to these endpoint IP addresses.
+
+Let's examine the KUBE-SERVICE chain.
 
 ```
 sudo iptables -v --numeric --table nat --list KUBE-SERVICES | column -t
@@ -132,7 +144,9 @@ Each iptables chain consists of a list of rules that are executed in order until
 * the comments that kube-proxy inculdes
 * the additional match criteria at the end of each rule - e.g `dpt:80` that specifies the destination port match
 
-8. Now let's look more closely at the rules for the `summary` service.
+#### Inspect the summary service rule
+
+Now let's look more closely at the rules for the `summary` service.
 
 ```
 sudo iptables -v --numeric --table nat --list KUBE-SERVICES | grep -E summary | column -t
@@ -142,9 +156,11 @@ You should see an output similar to the following.
 0  0  KUBE-SVC-OIQIZJVJK6E34BR4  tcp  --  *  *  0.0.0.0/0  10.49.80.32  /*  yaobank/summary:http  cluster  IP  */  tcp  dpt:80
 ```
 
-9. The rule above directs traffic destined for the summary service clusterIP (`10.49.80.32` in the example output) to the chain that load balances the service (KUBE-SVC-XXXXXXXXXXXXXXXX).
+The rule above directs traffic destined for the summary service clusterIP (`10.49.80.32` in the example output) to the chain that load balances the service (KUBE-SVC-XXXXXXXXXXXXXXXX).
 
-10. `kube-proxy` in `iptables` mode uses an equal probability algorithm to load balance traffic between pods.  We currently have two `summary` pods.
+#### Examine the service load-balancing chain
+
+`kube-proxy` in `iptables` mode uses an equal probability algorithm to load balance traffic between pods.  We currently have two `summary` pods.
 
 Let's examine how this loadbalancing works among the Kubernetes service endpoints. (Remember your chain name may be different than this example.)
 
@@ -169,7 +185,9 @@ If there were 3 service endpoints, then the first chain match would be probabili
 
 
 
-11. Let's look at one of the service endpoint chains. (Remember your chain names may be different than this example.)
+#### Inspect a service endpoint chain
+
+Let's look at one of the service endpoint chains. (Remember your chain names may be different than this example.)
 ```
 sudo iptables -v --numeric --table nat --list KUBE-SEP-NCOI6JAXVX2D4BXJ | column -t
 ```
@@ -181,7 +199,7 @@ pkts   bytes                      target          prot         opt  in  out  sou
 0      0                          DNAT            tcp          --   *   *    0.0.0.0/0      0.0.0.0/0    /*  yaobank/summary:http  */  tcp  to:10.48.128.192:80
 ```
 
-12. The second rule performs the DNAT that changes the destination IP from the service's clusterIP to the IP address of the service endpoint backing pod (`10.48.128.192` in this example). After this, standard Linux routing can handle forwarding the packet like it would for any other packet.
+The second rule performs the DNAT that changes the destination IP from the service's clusterIP to the IP address of the service endpoint backing pod (`10.48.128.192` in this example). After this, standard Linux routing can handle forwarding the packet like it would for any other packet.
 
 **Recap**
 
@@ -200,7 +218,9 @@ ________________________________________________________________________________
 
 `NodePort` service enables us to expose a service outside the cluster using a static port on the cluster nodes. To reach a NodePort service from outside the cluster, we just need to use any of the cluster nodes IP addresses along with a port on the node. The default port range for NodePort is 30000-32767, but this range can be changed or extended through the kube-apiserver configuration.
 
-1. Let's explore the iptables rules that implement the `customer` service. Find the service endpoints for `customer` `NodePort` service. Keep using `worker1` to follow the instructions.
+#### Find the customer service endpoints
+
+Let's explore the iptables rules that implement the `customer` service. Find the service endpoints for `customer` `NodePort` service. Keep using `worker1` to follow the instructions.
 
 ```
 kubectl get endpoints -n yaobank customer
@@ -211,7 +231,9 @@ NAME       ENDPOINTS       AGE
 customer   10.48.0.43:80   2d2h
 ```
 
-2. The `customer` service has one endpoint (`10.48.0.43` on port `80` in this example output). Starting from the `KUBE-SERVICES` iptables chain, we will traverse each chain until you get to the rule directing traffic to this endpoint IP address.
+#### Locate the KUBE-NODEPORTS chain
+
+The `customer` service has one endpoint (`10.48.0.43` on port `80` in this example output). Starting from the `KUBE-SERVICES` iptables chain, we will traverse each chain until you get to the rule directing traffic to this endpoint IP address.
 
 **Note:** The `KUBE-SERVICE` chain handles the matching for service types `ClusterIP` and `LoadBalancer`. At the end of `KUBE-SERVICE` chain, another custom chain `KUBE-NODEPORTS` will handle traffic for service type `NodePort`.
 
@@ -223,9 +245,11 @@ sudo iptables -v --numeric --table nat --list KUBE-SERVICES | grep KUBE-NODEPORT
 80  4836  KUBE-NODEPORTS  all  --  *  *  0.0.0.0/0  0.0.0.0/0  /*  kubernetes  service  nodeports;  NOTE:  this  must  be  the  last  rule  in  this  chain  */  ADDRTYPE  match  dst-type  LOCAL
 ```
 
-3. `match dst-type LOCAL` matches any packet with a local host IP as the destination. i.e. any address that is assigned to one of the host's interfaces.
+`match dst-type LOCAL` matches any packet with a local host IP as the destination. i.e. any address that is assigned to one of the host's interfaces.
 
-4. Now let's look more closely at the rules for the `customer` service.
+#### Examine the KUBE-NODEPORTS chain rules
+
+Now let's look more closely at the rules for the `customer` service.
 
 ```
 sudo iptables -v --numeric --table nat --list KUBE-NODEPORTS | column -t
@@ -239,7 +263,9 @@ pkts   bytes           target                     prot         opt  in  out  sou
 
 The rule above directs traffic destined for the `customer` service to the chain that load balances the service (KUBE-SVC-PX5FENG4GZJTCELT). `tcp dpt:30180` matches any packet with the destination port of tcp 30180 (the node port of the `customer` service).
 
-5. `kube-proxy` in `iptables` mode uses an equal probability algorithm to load balance traffic between pods.  We currently have one `customer` pod.
+#### Examine the service load-balancing chain
+
+`kube-proxy` in `iptables` mode uses an equal probability algorithm to load balance traffic between pods.  We currently have one `customer` pod.
 
 Let's examine how this loadbalancing works among the Kubernetes service endpoints. (Remember your chain name may be different than this example.)
 
@@ -257,7 +283,9 @@ pkts   bytes                      target                     prot         opt  i
 
 As we only have a single backing pod for the `customer` service, there is no loadbalancing to do, so there is a single rule (last rule) that directs all traffic to the chain that delivers the packet to the service endpoint (KUBE-SEP-XXXXXXXXXXXXXXXX).
 
-6. Finally, lets' look into the KUBE-SEP-XXXXXXXXXXXXXXXX to `customer` endpoint. This rule delivers the packet to the `customer` service endpoint.
+#### Inspect the customer service endpoint chain
+
+Finally, lets' look into the KUBE-SEP-XXXXXXXXXXXXXXXX to `customer` endpoint. This rule delivers the packet to the `customer` service endpoint.
 
 ```
 sudo iptables -v --numeric --table nat --list KUBE-SEP-GNFCEQXJBZQ2TQAR | column -t
@@ -291,7 +319,9 @@ ________________________________________________________________________________
 
 Calico Enterprise BGP service advertisement allows you to directly access the service without using a NodePorts or LoadBalancer service or a cluster Ingress Controller.
 
-1. let's start by taking a look at the state of routes on the `bastion` node. If you completed the previous lab correctly, you should see one route that was learned from Calico that provides access to the nginx pod that was created in the externally routable namespace (the route ending in `proto bird` in this example output). In this section, we will advertise Kubernetes services rather than individual pods over BGP.
+#### Check the routes on the bastion node
+
+let's start by taking a look at the state of routes on the `bastion` node. If you completed the previous lab correctly, you should see one route that was learned from Calico that provides access to the nginx pod that was created in the externally routable namespace (the route ending in `proto bird` in this example output). In this section, we will advertise Kubernetes services rather than individual pods over BGP.
 
 ```
 ip route
@@ -304,7 +334,9 @@ default via 10.0.1.1 dev ens5 proto dhcp src 10.0.1.10 metric 100
 10.48.2.216/29 via 10.0.1.31 dev ens5 proto bird
 ```
 
-2. Run the following command and ensure that there is no bgpconfigurations in your cluster.
+#### Confirm there are no BGP configurations
+
+Run the following command and ensure that there is no bgpconfigurations in your cluster.
 
 **Note:** A BGPConfiguration resource (BGPConfiguration) represents BGP specific configuration options for the cluster or a specific node. The resource with the name `default` has a specific meaning and contains the BGP global default configuration. By default, there is no BGPConfiguration resource deployed in the cluster. However, Once BGP is activated, Calico has default built-in configurations for BGP in its data model. For example, it use 64512 as the default AS number.
 
@@ -316,7 +348,9 @@ You should receive the following output.
 No resources found
 ```
 
-3. Examine the following default BGP configuration and then apply it.
+#### Apply the default BGP configuration
+
+Examine the following default BGP configuration and then apply it.
 
 ```
 kubectl apply -f -<<EOF
@@ -333,7 +367,9 @@ EOF
 The `serviceClusterIPs` parameter tells Calico to advertise the cluster IP range.
 
 
-4. Verify the BGPConfiguration just implemented.
+#### Verify the BGPConfiguration
+
+Verify the BGPConfiguration just implemented.
 
 ```
 kubectl get bgpconfigurations default -o yaml
@@ -355,7 +391,9 @@ spec:
   - cidr: 10.49.0.0/16
 ```
 
-5. Now that we have enabled Service ClusterIP advertisement, let's examine the routes on `bastion` node again.
+#### Re-examine the routes on the bastion node
+
+Now that we have enabled Service ClusterIP advertisement, let's examine the routes on `bastion` node again.
 
 ```
 ip route
@@ -375,7 +413,9 @@ default via 10.0.1.1 dev ens5 proto dhcp src 10.0.1.10 metric 100
 You should now see the cluster service cidr `10.49.0.0/16` advertised from each of the kubernetes cluster nodes. This means that traffic to any service's cluster IP address will get load-balanced across all nodes in the cluster by the network using ECMP (Equal Cost Multi Path). Kube-proxy then load balances the cluster IP across the service endpoints (backing pods) in exactly the same way as if a pod had accessed a service via a clusterIP from within the cluster.
 
 
-6. Let's verify connectivity through the clusterIP. Find the cluster IP for the `customer` service.
+#### Find the customer service cluster IP
+
+Let's verify connectivity through the clusterIP. Find the cluster IP for the `customer` service.
 
 ```
 kubectl get svc -n yaobank customer
@@ -389,7 +429,9 @@ customer   NodePort   10.49.60.52   <none>        80:30180/TCP   2d3h
 
 In this case, the ClusterIP is `10.49.60.52`. Your IP may be different.
 
-7. Confirm you can access it from the `bastion` host.
+#### Access the service through its cluster IP
+
+Confirm you can access it from the `bastion` host.
 
 ```
 curl 10.49.60.52
@@ -439,7 +481,9 @@ Note that `externalTrafficPolicy: Local` is only supported with service types of
 https://docs.tigera.io/networking/advertise-service-ips
 
 
-1. Let's start by updating the `customer` service to add `externalTrafficPolicy: Local`.
+#### Set externalTrafficPolicy to Local on the customer service
+
+Let's start by updating the `customer` service to add `externalTrafficPolicy: Local`.
 
 ```
 kubectl patch svc -n yaobank customer -p '{"spec":{"externalTrafficPolicy":"Local"}}'
@@ -449,7 +493,9 @@ kubectl patch svc -n yaobank customer -p '{"spec":{"externalTrafficPolicy":"Loca
 service/customer patched
 ```
 
-2. Examine the routes on bastion node.
+#### Examine the routes on the bastion node
+
+Examine the routes on bastion node.
 
 ```
 ip route
@@ -467,7 +513,9 @@ default via 10.0.1.1 dev ens5 proto dhcp src 10.0.1.10 metric 100
 10.49.60.52 via 10.0.1.31 dev ens5 proto bird 
 ```
 
-3. You should now have a `/32` route for the yaobank customer service (`10.49.60.52` in the above example output) advertised from the node hosting the customer service pod (`10.0.1.31` in this example output).
+#### Confirm the /32 service route
+
+You should now have a `/32` route for the yaobank customer service (`10.49.60.52` in the above example output) advertised from the node hosting the customer service pod (`10.0.1.31` in this example output).
 
 ```
 kubectl get pods -n yaobank -l app=customer -o wide
@@ -486,15 +534,19 @@ The two main advantages of using `externalTrafficPolicy: Local` in this way are:
 * The client source IP addresses are preserved, which can be useful if you want to restrict access to a service to specific IP addresses using network policy applied to the backing pods
 
 
-4. In the previous labs, we accessed the yaobank frontend UI using curl from the `control1` node and we also mentioned that we can try any other cluster node IP address to hit the NodePort. As we've now set `externalTrafficPolicy: Local`, this will no longer work since there are no `customer` pods hosted on `control1`. Accessing the NodePort can only happen via the cluster node that is hosting the endpoint at this point.
+#### Verify the NodePort fails on a node without a local endpoint
 
-5. The following should fail because of `externalTrafficPolicy: Local` configured on the `customer` service.
+In the previous labs, we accessed the yaobank frontend UI using curl from the `control1` node and we also mentioned that we can try any other cluster node IP address to hit the NodePort. As we've now set `externalTrafficPolicy: Local`, this will no longer work since there are no `customer` pods hosted on `control1`. Accessing the NodePort can only happen via the cluster node that is hosting the endpoint at this point.
+
+The following should fail because of `externalTrafficPolicy: Local` configured on the `customer` service.
 
 ```
 curl 10.0.1.20:30180
 
 ```
- 6. The following should go through. Please make sure to use the node IP address where customer pod is running. 
+#### Verify the NodePort succeeds on the node hosting the endpoint
+
+The following should go through. Please make sure to use the node IP address where customer pod is running. 
 
 ```
 curl 10.0.1.31:30180
@@ -536,14 +588,18 @@ Kubernetes Ingress is an API object that provides routing rules to manage extern
 
 In this section, we will use an ingress controller to expose the Yaobank Customer service.
 
-1. Let's start with removing the previous yaobank deployment and proceed to deploying the new configuration. For simplicity, let's just remove the namespace, which deletes all included objects. It might take 1-2 minutes for the namespace to get deleted. Please wait until the namespace is deleted.
+#### Remove the previous yaobank deployment
+
+Let's start with removing the previous yaobank deployment and proceed to deploying the new configuration. For simplicity, let's just remove the namespace, which deletes all included objects. It might take 1-2 minutes for the namespace to get deleted. Please wait until the namespace is deleted.
 
 ```
 kubectl delete ns yaobank
 
 ```
 
-2. Deploy an ingress controller that listens to all namespaces.
+#### Examine the deployed ingress controller
+
+Deploy an ingress controller that listens to all namespaces.
 
 Ingress is the built-in kubernetes framework for load-balancing http traffic. Cloud providers offer a similar functionality out of the box via cloud load-balancers. Ingress allows the manipulation of incoming http requests, natting/routing traffic to back-end services based on provided host/path, or even passing-through traffic. It can effectively provide L7-based policies and typical load-balancing features such as stickiness, health probes, or weight-based load-balancing.
 
@@ -580,7 +636,9 @@ Nginx ingress controller, by default, listens to all namespaces. Once an Ingress
 
 Currently we have not created any ingress resource in the yaobank namespace yet. So if we try to access our lab instance on port 443 using our browser `https:\\yaobank.<LabName>.training.tigera.ca`, we will get a 404 error from our ingress controller.
 
-3. Deploy the new instance of yaobank app.
+#### Deploy the new instance of the yaobank app
+
+Deploy the new instance of yaobank app.
 
 ```
 kubectl apply -f -<<EOF
@@ -746,7 +804,9 @@ EOF
 
 ```
 
-4. Make sure the yaobank pods are running.
+#### Verify the yaobank pods are running
+
+Make sure the yaobank pods are running.
 
 ```
 kubectl get pods -n yaobank
@@ -760,7 +820,9 @@ summary-7579bd9566-hjkjt    1/1     Running   0          21m
 summary-7579bd9566-k6z4s    1/1     Running   0          21m
 ```
 
-5. Before applying the following manifest, make sure to update the `host` name by replacing `<LABNAME>` with the name of your lab instance in the following Ingress resources.
+#### Create the Ingress resource
+
+Before applying the following manifest, make sure to update the `host` name by replacing `<LABNAME>` with the name of your lab instance in the following Ingress resources.
 
 
 ```
@@ -788,7 +850,9 @@ EOF
 
 ```
 
-6. Verify that the ingress resource has been successfully deployed.
+#### Verify the Ingress resource
+
+Verify that the ingress resource has been successfully deployed.
 
 ```
 kubectl get ingress -n yaobank
@@ -800,11 +864,15 @@ NAME      CLASS    HOSTS                                 ADDRESS               P
 yaobank   <none>   yaobank.cenetworking.training.tigera.ca   10.0.1.30,10.0.1.31   80      36s
 ```
 
-7. Check the connectivity to the customer service `https:\\yaobank.<LabName>.training.tigera.ca` via your browser. 
+#### Access the customer service through the browser
+
+Check the connectivity to the customer service `https:\\yaobank.<LabName>.training.tigera.ca` via your browser. 
 
 ![yaobank](img/1.yaobank-ingress-access.JPG)
 
-8. Note we do not use a NodePort service anymore for our customer application in this last manifest as now we use the ingress to access it.
+#### Confirm the customer service no longer uses a NodePort
+
+Note we do not use a NodePort service anymore for our customer application in this last manifest as now we use the ingress to access it.
 
 ```
 kubectl get svc -n yaobank
@@ -818,7 +886,9 @@ database   ClusterIP   10.49.100.163   <none>        2379/TCP   22m
 summary    ClusterIP   10.49.102.204   <none>        80/TCP     22m
 ```
 
-9. We will need to use yaobank application using NodePort service in the next lab. Let's delete the yaobank namespace as we will need to deploy it again.
+#### Delete the yaobank namespace
+
+We will need to use yaobank application using NodePort service in the next lab. Let's delete the yaobank namespace as we will need to deploy it again.
 
 ```
 kubectl delete namespace yaobank
@@ -827,12 +897,14 @@ kubectl delete namespace yaobank
 ______________________________________________________________________________________________________________________________________________________________________
 
 
-# Configure kube-proxy to use IPVS mode
+### Configure kube-proxy to use IPVS mode
 
 
 Kube-proxy can run in three different modes, which are user-space proxy mode, iptables proxy mode and IPVS proxy mode. IPVS uses the netlink interface to create IPVS rules for the services. IPVS is also the component that redirects the traffic to the endpoints. Similar to iptables mode, IPVS is also implemented at the Linux kernel level, but it uses hash table for the underlying data structure. As a result, it handles the traffic with lower latency compared to iptables mode. IPVS mode provides greater scale and performance compared iptables mode when it comes to large number of services. In this lab, we will configure kube-proxy to use IPVS mode.
 
-1. Let start by loading the below required kernel modules and install `ipvsadm` and `ipset` on all the nodes. SSH into each cluster node `control1` `worker1` `worker2` and run the below commands.
+#### Load kernel modules and install ipvsadm and ipset
+
+Let start by loading the below required kernel modules and install `ipvsadm` and `ipset` on all the nodes. SSH into each cluster node `control1` `worker1` `worker2` and run the below commands.
 
 ```
 sudo apt install -y ipvsadm ipset
@@ -851,7 +923,9 @@ sudo sysctl -p
 
 ```
 
-2. Check that the kernel modules are loaded. Check all the three nodes.
+#### Verify the kernel modules are loaded
+
+Check that the kernel modules are loaded. Check all the three nodes.
 
 ```
 lsmod | grep -e ip_vs -e nf_conntrack
@@ -859,7 +933,9 @@ cut -f1 -d " " /proc/modules | grep -e ip_vs -e nf_conntrack
 
 ```
 
-3. To enable IPVS mode, edit the kube-proxy's `configmap` by changing the `mode` from "" to `ipvs`.
+#### Enable IPVS mode in the kube-proxy ConfigMap
+
+To enable IPVS mode, edit the kube-proxy's `configmap` by changing the `mode` from "" to `ipvs`.
 
 ```
 kubectl -n kube-system edit cm kube-proxy
@@ -871,21 +947,27 @@ Below is a sample configuration.
 ![kube-proxy-configmap](img/2.kube-proxy-ipvs-mode.JPG)
 
 
-4. Delete all the running kube-proxy pods to load the new configuration.
+#### Restart the kube-proxy pods
+
+Delete all the running kube-proxy pods to load the new configuration.
 
 ```
 for i in $(kubectl get pods -n kube-system -o name | grep kube-proxy) ; do kubectl delete $i -n kube-system ; done
 
 ```
 
-5. Check the logs of new kube-proxy pods
+#### Check the new kube-proxy pod logs
+
+Check the logs of new kube-proxy pods
 
 ```
 for i in $(kubectl get pods -n kube-system -o name | grep kube-proxy) ; do kubectl logs $i -n kube-system | grep "Using ipvs Proxier" ; done
 
 ```
 
-6. If you are able to find the following String in the logs, IPVS mode is being used by the cluster. You can also check the detailed logs for the IPVS mode.
+#### Confirm IPVS mode is active in the logs
+
+If you are able to find the following String in the logs, IPVS mode is being used by the cluster. You can also check the detailed logs for the IPVS mode.
 
 ```
 I0103 00:16:08.955456       1 server_others.go:269] "Using ipvs Proxier"
@@ -893,7 +975,9 @@ I0103 00:16:10.305447       1 server_others.go:269] "Using ipvs Proxier"
 I0103 00:16:07.787211       1 server_others.go:269] "Using ipvs Proxier"
 ```
 
-7. Users can use ipvsadm tool to check whether kube-proxy are maintaining IPVS rules correctly. This can be done from any of the cluster nodes, but not from the bastion node. In this example, we will use the kubernetes APIserver service to check on the relevant rules. You can follow the below procedure to check on the IPVS loadbalancing rules for other services in the cluster.
+#### Verify IPVS rules with ipvsadm
+
+Users can use ipvsadm tool to check whether kube-proxy are maintaining IPVS rules correctly. This can be done from any of the cluster nodes, but not from the bastion node. In this example, we will use the kubernetes APIserver service to check on the relevant rules. You can follow the below procedure to check on the IPVS loadbalancing rules for other services in the cluster.
 
 ```
 ssh worker1
@@ -910,7 +994,9 @@ NAME         TYPE        CLUSTER-IP   EXTERNAL-IP   PORT(S)   AGE
 kubernetes   ClusterIP   10.49.0.1    <none>        443/TCP   4d2h
 ```
 
-8. As the APIServer has a single endpoint because our cluster only has one master node, we can grep a single line below the Cluster IP to check the IPVS proxy rules for it. Following are the IPVS proxy rules for above services
+#### Check the IPVS proxy rules for the APIServer service
+
+As the APIServer has a single endpoint because our cluster only has one master node, we can grep a single line below the Cluster IP to check the IPVS proxy rules for it. Following are the IPVS proxy rules for above services
 
 ```
 sudo ipvsadm -ln | grep -A1 10.49.0.1:443
@@ -922,7 +1008,9 @@ TCP  10.49.0.1:443 rr
   -> 10.0.1.20:6443               Masq    1      1          0   
 ```
 
-9. let's create a `nginx-deployment` and a `service` and observe how `ipvs` loadbalancing works.
+#### Create an nginx deployment and service
+
+let's create a `nginx-deployment` and a `service` and observe how `ipvs` loadbalancing works.
 
 
 ```
@@ -963,7 +1051,9 @@ EOF
 
 ```
 
-10. Examine the ClusterIP of `service-nginx` service.
+#### Examine the ClusterIP of the service-nginx service
+
+Examine the ClusterIP of `service-nginx` service.
 
 ```
 kubectl get svc service-nginx
@@ -975,14 +1065,18 @@ NAME            TYPE        CLUSTER-IP     EXTERNAL-IP   PORT(S)   AGE
 service-nginx   ClusterIP   10.49.20.211   <none>        80/TCP    70s
 ```
 
-11. Now let's list the ipvs table and check how the service mapping to pods are created using deployment. (This command needs to be run from one of the worker nodes).
+#### List the IPVS table for the service
+
+Now let's list the ipvs table and check how the service mapping to pods are created using deployment. (This command needs to be run from one of the worker nodes).
 
 ```
 sudo ipvsadm -l | grep -A3 $(kubectl get svc service-nginx --no-headers | awk {'print $3'})
 
 ```
 
-12. Here `ip-10-49-20-211.eu-west-1.co` is the `service-nginx` service and below the service you can see the list of pods/endpoints. `rr` means the loadbalancing used is `round-robin`.
+#### Interpret the IPVS service-to-pod mapping
+
+Here `ip-10-49-20-211.eu-west-1.co` is the `service-nginx` service and below the service you can see the list of pods/endpoints. `rr` means the loadbalancing used is `round-robin`.
 
 ```
 TCP  ip-10-49-20-211.eu-west-1.co rr
@@ -991,7 +1085,9 @@ TCP  ip-10-49-20-211.eu-west-1.co rr
   -> ip-10-48-0-208.eu-west-1.com Masq    1      0          0 
 ```
 
-13. Check connectivity to the `service-nginx` service from any of the worker nodes.
+#### Check connectivity to the service-nginx service
+
+Check connectivity to the `service-nginx` service from any of the worker nodes.
 
 ```
 ssh worker1
@@ -1032,27 +1128,35 @@ Commercial support is available at
 ```
 
 
-14. Let's check on IPVS load balancing. Open two terminal sessions and SSH into worker1. Note that both of the following commands need to run from the same host.
+#### Prepare two terminal sessions on worker1
+
+Let's check on IPVS load balancing. Open two terminal sessions and SSH into worker1. Note that both of the following commands need to run from the same host.
 
 ```
 ssh worker1
 
 ```
 
-15. Run the following command to analyze the packet flow per second in IPVS mode. Initially, all the traffic counters need to be zero for `service-nginx`.
+#### Monitor the IPVS packet rate
+
+Run the following command to analyze the packet flow per second in IPVS mode. Initially, all the traffic counters need to be zero for `service-nginx`.
 
 ```
 watch sudo ipvsadm -L -n --rate
 
 ```
 
-16. Run the following script to generate traffic for the `service-nginx` service and check the output stats in other terminal again. This time you should see the traffic counters increasing. Please make sure to replace the correct service IP in the following command.
+#### Generate traffic to the service
+
+Run the following script to generate traffic for the `service-nginx` service and check the output stats in other terminal again. This time you should see the traffic counters increasing. Please make sure to replace the correct service IP in the following command.
 
 ```
 for i in {1..30}; do  curl <service-ip>:80 ; done
 ```
 
-17. You should see the traffic getting distributed among the pods using `rr algorithm`. Following is a sample output.
+#### Observe traffic distribution across the pods
+
+You should see the traffic getting distributed among the pods using `rr algorithm`. Following is a sample output.
 
 ```
 Every 2.0s: sudo ipvsadm -L -n --rate                                                                              ip-10-0-1-30.eu-west-1.compute.internal: Tue Jan  3 00:58:23 2023
@@ -1096,7 +1200,9 @@ TCP  10.49.102.204:80                    0        0        0        0        0
 TCP  10.49.105.153:9093                  0        0        0        0        0
 ```
 
-18. Clean up the bgpconfiguration and bgppeer resource previously configured.
+#### Clean up the BGP configuration and BGP peer
+
+Clean up the bgpconfiguration and bgppeer resource previously configured.
 
 ```
 kubectl delete bgpconfigurations default
@@ -1107,7 +1213,9 @@ kubectl delete bgppeers bgppeer-global-64512
 
 ```
 
-19. Switch back to `iptables` mode. Edit the kube-proxy's `configmap` by changing the `mode` from `ipvs` to "".
+#### Switch back to iptables mode
+
+Switch back to `iptables` mode. Edit the kube-proxy's `configmap` by changing the `mode` from `ipvs` to "".
 
 ```
 kubectl -n kube-system edit cm kube-proxy

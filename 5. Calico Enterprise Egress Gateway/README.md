@@ -19,20 +19,26 @@ ________________________________________________________________________________
 ### Implement Calico Enterprise Egress Gateway
 
 
-1. Enable egress gateway support by patching FelixConfiguration to support egress gateway both per namespace and per pod.
+#### Enable egress gateway support in FelixConfiguration
+
+Enable egress gateway support by patching FelixConfiguration to support egress gateway both per namespace and per pod.
 
 ```
 kubectl patch felixconfiguration.p default --type='merge' -p '{"spec":{"egressIPSupport":"EnabledPerNamespaceOrPerPod"}}'
     
 ```
-2. Egress gateways require the Policy Sync API to be enabled in `felixconfiguration` to implement symmetric routing. Run the following command to enable this configuration cluster-wide.
+#### Enable the Policy Sync API
+
+Egress gateways require the Policy Sync API to be enabled in `felixconfiguration` to implement symmetric routing. Run the following command to enable this configuration cluster-wide.
 
 ```
 kubectl patch felixconfiguration.p default --type='merge' -p '{"spec":{"policySyncPathPrefix":"/var/run/nodeagent"}}'
     
 ```
 
-3. Egress gateways use the IPPool resource for a particular application when it connects outside of the cluster. Run the following command to create the egress gateway IPPool.
+#### Create the egress gateway IPPool
+
+Egress gateways use the IPPool resource for a particular application when it connects outside of the cluster. Run the following command to create the egress gateway IPPool.
 
 ```
 kubectl apply -f - <<EOF
@@ -48,7 +54,9 @@ EOF
 
 ```
 
-4. Let's create a namespace and application, which will be using egress gateway to connect to resources outside the cluster.
+#### Deploy the egress gateway client application
+
+Let's create a namespace and application, which will be using egress gateway to connect to resources outside the cluster.
 
 ```
 kubectl apply -f -<<EOF
@@ -103,21 +111,27 @@ EOF
 
 ```
 
-5. Make sure the pods are running.
+#### Verify the client pods are running
+
+Make sure the pods are running.
 
 ```
 kubectl get pods -n app1
 
 ```
 
-6. Egress gateway image needs to be downloaded onto the the nodes where egress gateway pods are deployed. We need to identify the pullsecret that is needed for pulling Calico Enterprise images and copy it into the namespace where you plan to create your egress gateways. Calico Enterprise by default uses a secret named `tigera-pull-secret`. Run the following command to copy `tigera-pull-secret` from `calico-system` namespace to the `default` namespace.
+#### Copy the image pull secret to the default namespace
+
+Egress gateway image needs to be downloaded onto the the nodes where egress gateway pods are deployed. We need to identify the pullsecret that is needed for pulling Calico Enterprise images and copy it into the namespace where you plan to create your egress gateways. Calico Enterprise by default uses a secret named `tigera-pull-secret`. Run the following command to copy `tigera-pull-secret` from `calico-system` namespace to the `default` namespace.
 
 ```
 kubectl get secret tigera-pull-secret --namespace=calico-system -o yaml | grep -v '^[[:space:]]*namespace:[[:space:]]*calico-system' | kubectl apply --namespace=default -f -
 
 ```
 
-7. Deploy the Egress gateway by browsing to the following link, copy the egress-gateway deployment, and deploy it in the cluster. Make sure the version of egress-gateway image matches the Calico Enterprise version deployed in the cluster.
+#### Deploy the egress gateway
+
+Deploy the Egress gateway by browsing to the following link, copy the egress-gateway deployment, and deploy it in the cluster. Make sure the version of egress-gateway image matches the Calico Enterprise version deployed in the cluster.
 
 https://docs.tigera.io/networking/egress/egress-gateway-on-prem#deploy-a-group-of-egress-gateways 
 
@@ -231,7 +245,9 @@ spec:
 EOF
 
 ```
-8. Make sure that the egress gateway pod is running.
+#### Verify the egress gateway pod is running
+
+Make sure that the egress gateway pod is running.
 
 ```
 kubectl get pods -o wide
@@ -246,20 +262,26 @@ nginx-deployment-9456bbbf9-6g6gl   1/1     Running   0          23h    10.48.0.3
 nginx-deployment-9456bbbf9-rkl9s   1/1     Running   0          23h    10.48.0.37    ip-10-0-1-31.eu-west-1.compute.internal   <none>           <none>
 ```
 
-9. We will now need to configure our egress gateway client (app1 application) to use the egress gateway. We could configure specific pods/deployments in app1 namespace to use the egress gateway by annotating the pods/deployment or all the pods/deployments in app1 namespace by annotating the namespace. Since we only have a single app in app1 namespace, we will configure the annotation on the namespace.
+#### Annotate the client namespace to use the egress gateway
+
+We will now need to configure our egress gateway client (app1 application) to use the egress gateway. We could configure specific pods/deployments in app1 namespace to use the egress gateway by annotating the pods/deployment or all the pods/deployments in app1 namespace by annotating the namespace. Since we only have a single app in app1 namespace, we will configure the annotation on the namespace.
 
 ```
 kubectl annotate ns app1 egress.projectcalico.org/selector='egress-code == "red"'
 
 ```
-10. By default, the above selector can only match egress gateways in the same namespace. To select gateways in a different namespace, specify a namespaceSelector annotation as well. Since our egress gateway pod is running in `default` namespace and our egress gateway client is running in `app1` namespace, we need to run the following command.
+#### Add a namespace selector annotation
+
+By default, the above selector can only match egress gateways in the same namespace. To select gateways in a different namespace, specify a namespaceSelector annotation as well. Since our egress gateway pod is running in `default` namespace and our egress gateway client is running in `app1` namespace, we need to run the following command.
 
 ```
 kubectl annotate ns app1 egress.projectcalico.org/namespaceSelector="projectcalico.org/name == 'default'"
 
 ```
 
-11. Deploy the needed BGPConfiguration and BGPPeer so we route our traffic to the `bastion` host through the egress gateway.
+#### Deploy the BGPConfiguration and BGPPeer
+
+Deploy the needed BGPConfiguration and BGPPeer so we route our traffic to the `bastion` host through the egress gateway.
 
 ```
 kubectl apply -f -<<EOF
@@ -290,7 +312,9 @@ EOF
 
 ```
 
-12. `Bastion` host is simulating our upstream router and we should have BGP sessions established to all the cluster nodes using the above configurations. Run the following command on the `bastion` node to validate the bgp sessions from the `bastion` node to the cluster nodes.
+#### Verify BGP sessions and update the bird config on the bastion
+
+`Bastion` host is simulating our upstream router and we should have BGP sessions established to all the cluster nodes using the above configurations. Run the following command on the `bastion` node to validate the bgp sessions from the `bastion` node to the cluster nodes.
 
 ```
 sudo birdc show protocols
@@ -328,7 +352,9 @@ And restart bird
 ```
 sudo systemctl restart bird
 ```
-13. Check the routes on the `bastion` node. You should see that the edge gateway pod is reachable through the worker node where it has been deployed.
+#### Check the routes on the bastion node
+
+Check the routes on the `bastion` node. You should see that the edge gateway pod is reachable through the worker node where it has been deployed.
 
 ```
 ip route
@@ -344,14 +370,18 @@ default via 10.0.1.1 dev ens5 proto dhcp src 10.0.1.10 metric 100
         nexthop via 10.0.1.31 dev ens5 weight 1
 ```
 
-14. Let verify our egress gateway configurations in action and ensure that `app1` IP address are proxied by egress gateway when connecting to services outside the cluster. Open a second terminal to your lab instance. On that terminal, start netcat on the `bastion` host to listen to a specific port.
+#### Start a netcat listener on the bastion
+
+Let verify our egress gateway configurations in action and ensure that `app1` IP address are proxied by egress gateway when connecting to services outside the cluster. Open a second terminal to your lab instance. On that terminal, start netcat on the `bastion` host to listen to a specific port.
 
 ```
 netcat -nvlkp 7777
 
 ```
 
-15. On the original terminal window, exec into any of the pods in the app1 namespace.
+#### Exec into an app1 pod
+
+On the original terminal window, exec into any of the pods in the app1 namespace.
 
 ```
 APP1_POD=$(kubectl get pod -n app1 --no-headers -o name | head -1) && echo $APP1_POD
@@ -361,20 +391,26 @@ APP1_POD=$(kubectl get pod -n app1 --no-headers -o name | head -1) && echo $APP1
 kubectl exec -ti $APP1_POD -n app1 -- sh
 ```
 
-16. Try to connect to the port in the bastion host.
+#### Connect to the bastion port from the pod
+
+Try to connect to the port in the bastion host.
 
 ```
 nc -zv 10.0.1.10 7777
 
 ```
 
-17. Type `exit` to exit out the pod terminal.
+#### Exit the pod shell
+
+Type `exit` to exit out the pod terminal.
 
 ```
 exit
 ```
 
-18. Go to the terminal that you ran the following netcat server on the `bastion` node. You should see an output saying you connected from the IP of the egress gateway pod to the netcat server.
+#### Confirm the connection came from the egress gateway IP
+
+Go to the terminal that you ran the following netcat server on the `bastion` node. You should see an output saying you connected from the IP of the egress gateway pod to the netcat server.
 
 ```
 tigera@bastion:~$ netcat -nvlkp 7777
@@ -384,9 +420,11 @@ Listening on 0.0.0.0 7777
 Connection received on 10.10.10.0 39457
 ```
 
-19. Stop the netcat listener process in the `bastion` host with `^C`.
+Stop the netcat listener process in the `bastion` host with `^C`.
 
-20. Let's check on the special routing that Felix has implemented to proxy the `app1` traffic through the egress gateway. Check where the egress gateway client pods are running. 
+#### Check where the egress gateway client pods are running
+
+Let's check on the special routing that Felix has implemented to proxy the `app1` traffic through the egress gateway. Check where the egress gateway client pods are running. 
 
 ```
 kubectl get pods -n app1 -o wide
@@ -399,13 +437,17 @@ app1-deployment-6ccc9654cb-c8ztq   1/1     Running   0          3h50m   10.48.0.
 app1-deployment-6ccc9654cb-wjnfl   1/1     Running   0          3h50m   10.48.0.210   ip-10-0-1-30.eu-west-1.compute.internal   <none>           <none>
 ```
 
-21. Log into the worker node where the egress gateway client pod `app1` is running. In this case, there are two pods and each one is running on a different worker node. Choose a node where the `app1` is running on and ssh into that node. Note `app1` pod IP address running on worker2. It is `10.48.0.60` in this case.
+#### Log into the worker node running the client pod
+
+Log into the worker node where the egress gateway client pod `app1` is running. In this case, there are two pods and each one is running on a different worker node. Choose a node where the `app1` is running on and ssh into that node. Note `app1` pod IP address running on worker2. It is `10.48.0.60` in this case.
 
 ```
 ssh worker2
 ```
 
-22. Observe the routing policy that is programmed for the the `app1` workload POD IP address `10.48.0.60`.
+#### Observe the routing policy for the client pod
+
+Observe the routing policy that is programmed for the the `app1` workload POD IP address `10.48.0.60`.
 
 ```
 ip rule
@@ -418,8 +460,11 @@ ip rule
 32767:  from all lookup default
 ```
 
-23. Confirm that the policy is choosing the egress gateway as the next hop for any source traffic from `app1`.
-#### Note: ensure to use the correct table number with the following command. In this case, the table number is 250.
+#### Confirm the egress gateway is the next hop
+
+Confirm that the policy is choosing the egress gateway as the next hop for any source traffic from `app1`.
+
+**Note:** ensure to use the correct table number with the following command. In this case, the table number is 250.
 
 ```
 ip route show table 250
@@ -430,7 +475,9 @@ ip route show table 250
 default via 10.10.10.0 dev egress.calico onlink 
 ```
 
-24. Starting Calico Enterprise 3.15, egress gateway supports using HTTP and ICMP probes for readiness health checking. If all probes of one type `ICMP/HTTP` fail, egress gateway pod failing the probe goes non-Ready. Let's configure our egress-gateway deployment to ping bastion node `10.0.1.10` for readiness check. Should this ping fail, egress gateway pod should go non-ready. Use the following command and set the value for `ICMP_PROBE_IPS` to `10.0.1.10`. Then save and exit. Egress gateway pod should restart because of this change.
+#### Configure an ICMP readiness probe on the egress gateway
+
+Starting Calico Enterprise 3.15, egress gateway supports using HTTP and ICMP probes for readiness health checking. If all probes of one type `ICMP/HTTP` fail, egress gateway pod failing the probe goes non-Ready. Let's configure our egress-gateway deployment to ping bastion node `10.0.1.10` for readiness check. Should this ping fail, egress gateway pod should go non-ready. Use the following command and set the value for `ICMP_PROBE_IPS` to `10.0.1.10`. Then save and exit. Egress gateway pod should restart because of this change.
 
 ```
 kubectl edit deployments.apps egress-gateway
@@ -439,13 +486,17 @@ kubectl edit deployments.apps egress-gateway
 
 ![patch-egress-gateway-deployment](img/1.egress-gateway-deployment-patch.JPG)
 
-25. Make sure that the egress gateway pod is running by running the following command.
+#### Confirm the egress gateway pod is running
+
+Make sure that the egress gateway pod is running by running the following command.
 
 ```
 kubectl get pods -o wide   
 ```
 
-26. Let's now implement a security policy that blocks ICMP traffic from egress gateway pod to `10.0.1.10`, but allows every other traffic.
+#### Block ICMP traffic to the bastion with a network policy
+
+Let's now implement a security policy that blocks ICMP traffic from egress gateway pod to `10.0.1.10`, but allows every other traffic.
 
 ```
 kubectl apply -f -<<EOF
@@ -474,7 +525,9 @@ EOF
 
 ```
 
-27. `ICMP_PROBE_TIMEOUT` environment variable is configured to `15s` by default. It should take about 15-20s after implementing the above policy for the egress gateway pod to show as non-ready as depiected below.
+#### Observe the egress gateway becomes non-ready
+
+`ICMP_PROBE_TIMEOUT` environment variable is configured to `15s` by default. It should take about 15-20s after implementing the above policy for the egress gateway pod to show as non-ready as depiected below.
 
 ```
 Every 2.0s: kubectl get pods -o wide                                                                                                                                                                                        bastion: Wed Jan  4 01:42:09 2023
@@ -486,7 +539,9 @@ nginx-deployment-9456bbbf9-6g6gl   1/1     Running   0          25h     10.48.0.
 nginx-deployment-9456bbbf9-rkl9s   1/1     Running   0          25h     10.48.0.37    ip-10-0-1-31.eu-west-1.compute.internal   <none>           <none>****
 ```
 
-28. Follow the same connectivity steps that were done from step 14-18 above. You should still be able to make connections from `app1` to `10.0.1.10` as shown below and the connections should appear to be coming from egress gateway pod. The reason is that egress gateway daemon is still running in the container and just the ICMP probe has failed 
+#### Verify connectivity still works despite the failed probe
+
+Follow the same connectivity steps that were done from step 14-18 above. You should still be able to make connections from `app1` to `10.0.1.10` as shown below and the connections should appear to be coming from egress gateway pod. The reason is that egress gateway daemon is still running in the container and just the ICMP probe has failed 
 
 ```
 Listening on 0.0.0.0 7777
@@ -498,7 +553,9 @@ Connection received on 10.10.10.0 44511
 Connection received on 10.10.10.0 42293
 ```
 
-29. Clean up the resources that were deployed for the purpose of this lab.
+#### Clean up the lab resources
+
+Clean up the resources that were deployed for the purpose of this lab.
 
 ```
 kubectl delete ns app1
