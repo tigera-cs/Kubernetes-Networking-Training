@@ -14,6 +14,8 @@ This lab provides the instructions to:
 
 Container Network Interface is an initiative from the Cloud-Native Computing Foundation. It is a set of interface standards that define how the container runtime engine (docker, cri-o, containerd, others) and the cni plugin work together to dynamically connect a pod to the network. Kubernetes defines the specification of the network model, but the actual implementation of the network model is abstracted from Kubernetes and Kubernetes uses the CNI for that. Upstream Kubernetes by default does not provide a network interface plugin. In this lab, we will walk through the process of installing Calico Enterprise as the CNI and security policy provider.
 
+**Lab environment.** The commands in this lab are run from a **bastion** host (where `kubectl`, `calicoctl`, and `oc` are available). The cluster has one **control-plane node** (`control1`, `10.0.1.20`) and two **worker nodes**, all in AWS. Two things are pre-provisioned for you and referenced in later sections: an external **AWS EC2 load balancer** that fronts the worker nodes on port 443, and a wildcard **DNS** record `*.<LABNAME>.training.tigera.ca` pointing at it — that is how you reach the Manager UI once ingress is configured. Replace `<LABNAME>` with your lab instance name wherever it appears.
+
 
 _______________________________________________________________________________________________________________________________________________________________________
 
@@ -273,13 +275,13 @@ calico-system          csi-node-driver-xldp2                                    
 calico-system          es-calico-kube-controllers-59b5956dd4-x6htq                          1/1     Running     0             6m13s
 kube-system            coredns-548d977cdd-4m6tk                                             1/1     Running     0             85m
 kube-system            coredns-548d977cdd-vhml8                                             1/1     Running     0             85m
-kube-system            etcd-ip-10-0-1-20.ca-central-1.compute.internal                      1/1     Running     0             85m
-kube-system            kube-apiserver-ip-10-0-1-20.ca-central-1.compute.internal            1/1     Running     0             85m
-kube-system            kube-controller-manager-ip-10-0-1-20.ca-central-1.compute.internal   1/1     Running     0             85m
+kube-system            etcd-ip-10-0-1-20.eu-west-1.compute.internal                      1/1     Running     0             85m
+kube-system            kube-apiserver-ip-10-0-1-20.eu-west-1.compute.internal            1/1     Running     0             85m
+kube-system            kube-controller-manager-ip-10-0-1-20.eu-west-1.compute.internal   1/1     Running     0             85m
 kube-system            kube-proxy-cs4c7                                                     1/1     Running     0             85m
 kube-system            kube-proxy-jvzt5                                                     1/1     Running     0             85m
 kube-system            kube-proxy-qkqqq                                                     1/1     Running     0             85m
-kube-system            kube-scheduler-ip-10-0-1-20.ca-central-1.compute.internal            1/1     Running     0             85m
+kube-system            kube-scheduler-ip-10-0-1-20.eu-west-1.compute.internal            1/1     Running     0             85m
 tigera-eck-operator    elastic-operator-0                                                   1/1     Running     0             9m43s
 tigera-elasticsearch   dashboards-installer-llvp2                                           0/1     Completed   0             5m58s
 tigera-elasticsearch   tigera-elasticsearch-metrics-f96d79d99-985qj                         1/1     Running     0             5m55s
@@ -650,54 +652,95 @@ ________________________________________________________________________________
 ### Enable Calico Ingress Gateway in host-network mode
 
 
-Calico Ingress Gateway (CIG) is Calico Enterprise's implementation of **Envoy Gateway**, driven entirely by the Kubernetes **Gateway API**. Before building anything, it helps to see the whole chain of resources and how they relate — traffic flows through them from the outside in, and each step below creates one link in that chain.
+Calico Ingress Gateway (CIG) is Calico Enterprise's hardened build of **Envoy Gateway**, driven entirely by the Kubernetes **Gateway API**. Enabling it is a chain of resources: some you create, some are created for you, and each one triggers the next thing to appear. This intro shows the whole chain first so the individual steps make sense.
+
+**Two planes**
+
+CIG is built from two independent halves. The **control plane decides how traffic should be handled**; the **data plane actually handles it**. Every resource you create in this lab is an instruction consumed by the control plane — knowing which half reacts to each object is the whole workflow in a nutshell:
+
+* **Control plane — the `envoy-gateway` controller** (a `Deployment` in `tigera-gateway`). It *watches* every Gateway API object (`GatewayClass`, `Gateway`, `HTTPRoute`, `TLSRoute`) and the `EnvoyProxy` object, translates them into Envoy configuration, and **creates and manages the data-plane workloads**. It never touches customer traffic. It appears once, the moment you apply the `GatewayAPI` CR.
+
+* **Data plane — the Envoy proxy pods** the controller provisions each time you create a `Gateway` (`gateway.networking.k8s.io/v1`). These pods are the **only** component that terminates the socket and forwards packets; the `Gateway`, `HTTPRoute`, and `TLSRoute` objects are just declarative config the controller programs into them.
+
+
+**The GatewayClass**
+
+A `GatewayClass` is the cluster-scoped **implementation** a `Gateway` selects by name (via `gatewayClassName`) — much like a `StorageClass` is selected by a `PersistentVolumeClaim`. It names the controller that handles it (`gateway.envoyproxy.io/gatewayclass-controller`) and, for CIG, links to the `EnvoyProxy` that shapes the data plane. 
 
 **The resources**
 
-| Resource (`kind`) | API group | What it declares | Do you create it? |
+| Resource (`kind`) | API group | What it declares | Who creates it |
 |---|---|---|---|
-| `GatewayAPI` | `operator.tigera.io/v1` | Tigera CR that turns on the Gateway API in Calico Enterprise and, for each class, links a `GatewayClass` name to an `EnvoyProxy` and a `gatewayKind` (`DaemonSet` or `Deployment`) | Yes — once per cluster |
-| `EnvoyProxy` | `gateway.envoyproxy.io/v1alpha1` | **How** the data-plane Envoy is deployed — here: host-network, worker-only, listener ports bound on the host | Yes |
-| `GatewayClass` | `gateway.networking.k8s.io/v1` | The ingress "class" / implementation, like a `StorageClass`; named `tigera-gateway-class` | No — the operator creates it from `GatewayAPI` |
-| `Gateway` | `gateway.networking.k8s.io/v1` | **Where** traffic enters: listeners (port, protocol, TLS mode). Creating one makes the controller provision the Envoy data plane | Yes |
-| `HTTPRoute` / `TLSRoute` | `gateway.networking.k8s.io/v1` | **How** traffic is routed: attaches to a `Gateway` (`parentRefs`) and forwards matched traffic to a `Service` (`backendRefs`) | Yes |
-| backend `Service` | `v1` | The workload that receives the traffic (e.g. `calico-manager`) | Already exists |
+| `EnvoyProxy` | `gateway.envoyproxy.io/v1alpha1` | **How** the data-plane Envoy is deployed — here: host-network, worker-only, ports bound on the host | You |
+| `GatewayAPI` | `operator.tigera.io/v1` | Turns the Gateway API on and links a `GatewayClass` name → an `EnvoyProxy` + a `gatewayKind` (`DaemonSet`/`Deployment`) | You — once per cluster |
+| `GatewayClass` | `gateway.networking.k8s.io/v1` | The ingress "class" (like a `StorageClass`); `tigera-gateway-class` | Operator, from `GatewayAPI` |
+| `Gateway` | `gateway.networking.k8s.io/v1` | **Where** traffic enters: listeners (port, protocol, TLS mode). Creating one makes the controller provision the data plane | You |
+| `HTTPRoute` / `TLSRoute` | `gateway.networking.k8s.io/v1` | **How** traffic is routed: attaches to a `Gateway` (`parentRefs`) → forwards to a `Service` (`backendRefs`) | You |
+| backend `Service` | `v1` | The workload receiving traffic (e.g. `calico-manager`) | Already exists |
 
-Two of these are **not** Kubernetes objects you route through — they are the running software:
+**What gets created, when, and where**
 
-* **Controller** — the `envoy-gateway` Deployment in `tigera-gateway`. It *watches* every resource above and translates them into Envoy configuration. It does not carry traffic.
-* **Data plane** — the Envoy `DaemonSet` the controller provisions from your `Gateway` (host-network, on the worker nodes, binding `:443`). **This is the only thing that actually terminates the socket and forwards packets.** The `GatewayAPI`/`Gateway`/`*Route` objects are just declarative config that tell the controller how to program it.
+This is the operational sequence — each row is a step in the lab, and the middle column is what materializes as a result:
 
-**How they fit together**
+| You apply | What appears as a result | Kind | Namespace |
+|---|---|---|---|
+| 1. `Namespace` `tigera-gateway` | the namespace itself | `Namespace` | (cluster-scoped) |
+| 2. `EnvoyProxy` `envoy-hostnet` | **nothing runs** — config only; consumed later | `EnvoyProxy` CR | `tigera-gateway` |
+| 3. `GatewayAPI` `tigera-secure` | **control plane** → the `envoy-gateway` controller **+** the `GatewayClass` `tigera-gateway-class` | `Deployment` / `GatewayClass` | `tigera-gateway` / cluster-scoped |
+| 4. `Gateway` `manager` | **data plane** → `envoy-tigera-gateway-manager-<hash>` **`DaemonSet` + `Service` + bootstrap `ConfigMap`**; Envoy pods land on worker nodes, bind `:443` | `DaemonSet`, `Service`, `ConfigMap` | `tigera-gateway` |
+| 5. `TLSRoute` `manager` | **no new workload** — controller pushes the SNI routing rule into the running Envoy; the `Gateway` listener's `attachedRoutes` → `1` | `TLSRoute` CR | `calico-system` |
 
+Steps 1–3 are this section; steps 4–5 come later, in [Access CE Manager UI using Ingress](#access-ce-manager-ui-using-ingress), when you actually expose a workload.
+
+**Why this order**
+
+* **`EnvoyProxy` before `GatewayAPI`.** The `GatewayClass` the operator creates points at the `EnvoyProxy` via `envoyProxyRef`; it only reports `Accepted=True` once that `EnvoyProxy` already exists. Create it first and the class comes up clean.
+* **Namespace by hand.** The operator won't create `tigera-gateway` until the `EnvoyProxy` reference resolves, so you create it manually up front.
+* **Data plane is lazy.** No Envoy pod exists until a `Gateway` is created — the controller provisions one set of data-plane workloads per `Gateway`. **Host-network mode** is not a global switch; it is simply the result of the `GatewayClass` pointing at *this* custom `EnvoyProxy`.
+
+```mermaid
+flowchart TB
+    subgraph CP["🧠 CONTROL PLANE — never carries packets"]
+        direction TB
+        GAPI["📜 GatewayAPI<br/>tigera-secure"]
+        CTRL["⚙️ envoy-gateway<br/>controller<br/>(Deployment)"]
+        GC["🏷️ GatewayClass<br/>tigera-gateway-class"]
+        EP["🧩 EnvoyProxy<br/>envoy-hostnet<br/>host-network · :443"]
+        GW["🚪 Gateway<br/>manager<br/>listener :443<br/>Passthrough"]
+        TR["🧭 TLSRoute<br/>manager<br/>routes by SNI"]
+
+        GAPI == "creates" ==> CTRL
+        GAPI == "creates" ==> GC
+        GAPI -. "envoyProxyRef" .-> EP
+        EP -. "shapes" .-> GW
+        GW -. "gatewayClassName" .-> GC
+        TR -. "parentRefs" .-> GW
+    end
+
+    subgraph DP["🚀 DATA PLANE — provisioned from the Gateway"]
+        DS["🛰️ Envoy DaemonSet<br/>host-network pods<br/>every worker · :443"]
+    end
+
+    SVC["🏦 Service<br/>calico-manager:9443"]
+    CLIENT["🌐 client"]
+    LB["☁️ AWS EC2 LB<br/>:443"]
+
+    CTRL == "provisions" ==> DS
+    TR == "backendRefs" ==> SVC
+
+    CLIENT ==> LB
+    LB == "to worker :443" ==> DS
+    DS == "route by SNI" ==> SVC
+
+    classDef api fill:#eef4ff,stroke:#4071c4,color:#102a54,font-weight:bold;
+    classDef ctrl fill:#f3e8ff,stroke:#7c3aed,color:#3b0764,font-weight:bold;
+    classDef data fill:#e9f9ee,stroke:#2e9e54,color:#0c3d20,font-weight:bold;
+    classDef ext fill:#fff4e6,stroke:#d9831f,color:#5c3408;
+    class GAPI,GC,GW,TR api;
+    class CTRL,EP ctrl;
+    class DS,SVC data;
+    class CLIENT,LB ext;
 ```
-  operator.tigera.io/v1                        gateway.networking.k8s.io/v1
-  ┌────────────────┐   operator creates     ┌───────────────┐
-  │   GatewayAPI   │ ───────────────────▶   │  GatewayClass │  (tigera-gateway-class)
-  │ (tigera-secure)│                        └───────┬───────┘
-  └───────┬────────┘                                ▲ gatewayClassName
-          │ envoyProxyRef                           │
-          ▼                                         │
-  ┌────────────────┐   shapes the data      ┌───────┴───────┐  listeners: :443 Passthrough
-  │   EnvoyProxy   │   plane deployment     │    Gateway    │
-  │ (envoy-hostnet)│ ────────────────────▶  │   (manager)   │
-  └────────────────┘                        └───────┬───────┘
-                                                    ▲ parentRefs
-                                                    │
-                                            ┌───────┴───────┐  backendRefs
-                                            │   TLSRoute    │ ──────▶ Service: calico-manager:9443
-                                            │   (manager)   │
-                                            └───────────────┘
-
-  The envoy-gateway CONTROLLER reads all of the above and programs the DATA PLANE:
-  a host-network Envoy DaemonSet on the WORKER nodes that binds :443.
-
-  Request path:
-  client ──▶ AWS EC2 load balancer :443 ──▶ worker node :443 ──▶ host-network Envoy
-         ──▶ (route by SNI / host) ──▶ backend Service (calico-manager:9443)
-```
-
-**Build order.** You create this chain over the next steps. A `GatewayClass` only becomes `Accepted` once the `EnvoyProxy` it points at exists, so the order is: create the `tigera-gateway` namespace, create the `EnvoyProxy`, then apply the `GatewayAPI` (which makes the operator create the `GatewayClass`). The `Gateway` and `TLSRoute` come later, when you expose a workload — see [Access CE Manager UI using Ingress](#access-ce-manager-ui-using-ingress). **Host-network mode** itself is selected simply by pointing the `GatewayClass` at the custom `EnvoyProxy` you create next.
 
 
 #### Create the tigera-gateway namespace
@@ -821,19 +864,11 @@ ________________________________________________________________________________
 
 ### Access CE Manager UI using Ingress
 
-In this section we expose the Calico Enterprise Manager UI so you can reach it from your browser, using **Calico Ingress Gateway** (the Gateway API). Before creating anything, it helps to understand that Calico Ingress Gateway has three distinct pieces — keeping them straight makes the rest of this section clear:
+In this section we expose the Calico Enterprise Manager UI so you can reach it from your browser, using **Calico Ingress Gateway** (the Gateway API). This is steps 4–5 of the chain introduced in [Enable Calico Ingress Gateway in host-network mode](#enable-calico-ingress-gateway-in-host-network-mode): the control plane (`envoy-gateway` controller) already runs, so here you add the two config objects that make it provision and program the data plane — first the `Gateway` (the listener), then the `TLSRoute` (the routing rule that attaches to it).
 
-| Piece | Role | In this lab |
-|---|---|---|
-| **Controller** | Watches Gateway API objects and programs the data plane | the `envoy-gateway` Deployment in `tigera-gateway` (created when you enabled CIG earlier) |
-| **Config objects** | *Declare* the desired routing — a `Gateway` (listeners: ports/protocol/TLS) and a `TLSRoute` (where matching traffic goes) | the two resources you create below |
-| **Data plane** | *Actually* terminates the socket and forwards packets | the host-network **Envoy DaemonSet** on the worker nodes, binding `:443` |
-
-The `Gateway` and `TLSRoute` are **only declarative config** — they are not themselves the thing routing traffic. When you apply them, the controller reacts by provisioning/updating the Envoy DaemonSet, and it is those Envoy pods (on the workers, bound to `:443`) that actually route the connections. Externally, the AWS EC2 load balancer forwards port 443 to those worker nodes.
+The `Gateway` and `TLSRoute` are **only declarative config** — they are not themselves the thing routing traffic. When you apply them, the controller reacts by provisioning/updating the Envoy `DaemonSet`, and it is those Envoy pods (on the workers, bound to `:443`) that actually route the connections. Externally, the AWS EC2 load balancer forwards port 443 to those worker nodes.
 
 The Manager UI terminates its own TLS and handles token-based auth, so we use **TLS passthrough**: Envoy routes by SNI and forwards the still-encrypted connection straight to the Manager — no certificate is configured on the Gateway. This is the host-network-on-443 equivalent of the nginx ingress used previously.
-
-We create the two config objects in separate steps so the roles stay clear: first the `Gateway` (the listener), then the `TLSRoute` (the routing rule that attaches to it).
 
 #### Create the passthrough Gateway
 
@@ -934,7 +969,7 @@ kubectl -n tigera-gateway get gateway manager -o jsonpath='listener {.status.lis
 
 #### Check access to the Manager UI URL
 
-Check your access to the yaobank application and CE Manager UI using the following URLs. Make sure to replace `<LABNAME>` with the name of your lab instance.
+Check your access to the CE Manager UI using the following URL. Make sure to replace `<LABNAME>` with the name of your lab instance. (yaobank is not exposed through the gateway in this lab — you reach it on its NodePort, as shown earlier.)
 
 ```
 https://manager.<LABNAME>.training.tigera.ca
