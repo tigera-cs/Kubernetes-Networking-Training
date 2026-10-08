@@ -7,8 +7,7 @@ This lab provides the instructions to:
 * [Explore Kubernetes service NodePort iptables rules](#explore-kubernetes-service-nodeport-iptables-rules)
 * [Advertise the ServiceIP range using Calico Enterprise](#advertise-the-serviceip-range-using-calico-enterprise)
 * [Advertise services with `externalTrafficPolicy: Local`to preserve the source IP and avoid extra hop in routing](#advertise-services-with-externaltrafficpolicy-local-to-preserve-the-source-ip-and-avoid-extra-hop-in-routing)
-* [Expose a service using Ingress resource](#expose-a-service-using-ingress-resource)
-* [Configure kube-proxy to use IPVS mode](#configure-kube-proxy-to-use-ipvs-mode)
+* [Clean up](#clean-up)
 
 
 
@@ -30,7 +29,7 @@ There are four types of Kubernetes services. ClusterIP, NodePort, LoadBalancer, 
 
 We will run this lab from `worker1` so we can explore the iptables rules that kube-proxy has set up. Run the following command to ssh into `worker1`.
 
-```
+```bash
 ssh worker1
 ```
 
@@ -38,10 +37,10 @@ ssh worker1
 
 Let's take a look at the services and pods in the `yaobank` kubernetes namespace. We should have three services deployed. One `NodePort` service and two `ClusterIP` services.
 
-```
+```bash
 kubectl get svc -n yaobank
 ```
-```
+```bash
 NAME       TYPE        CLUSTER-IP     EXTERNAL-IP   PORT(S)        AGE
 customer   NodePort    10.49.60.52    <none>        80:30180/TCP   2d2h
 database   ClusterIP   10.49.164.49   <none>        2379/TCP       2d2h
@@ -52,10 +51,10 @@ summary    ClusterIP   10.49.80.32    <none>        80/TCP         2d2h
 
 Run the following command to find the endpoints for each one of the services in yaobank namespace.
 
-```
+```bash
 kubectl get endpoints -n yaobank
 ```
-```
+```bash
 NAME       ENDPOINTS                         AGE
 customer   10.48.0.43:80                     2d2h
 database   10.48.128.0:2379                  2d2h
@@ -66,11 +65,11 @@ summary    10.48.128.1:80,10.48.128.192:80   2d2h
 
 List the pods in the yaobank namespace.
 
-```
+```bash
 kubectl get pods -n yaobank -o wide
 ```
 
-```
+```bash
 NAME                        READY   STATUS    RESTARTS   AGE    IP              NODE                                      NOMINATED NODE   READINESS GATES
 customer-687b8d8f74-tcclp   1/1     Running   0          2d2h   10.48.0.43      ip-10-0-1-31.eu-west-1.compute.internal   <none>           <none>
 database-75ccfdc84f-hqr64   1/1     Running   0          2d2h   10.48.128.0     ip-10-0-1-31.eu-west-1.compute.internal   <none>           <none>
@@ -85,11 +84,11 @@ You can see that the IP addresses listed as the service endpoints in the previou
 
 Let's explore the iptables rules that implement the `summary` service. Let's start by finding the service endpoints for the `summary` `ClusterIP` service.
 
-```
+```bash
 kubectl get endpoints -n yaobank summary
 ```
 
-```
+```bash
 NAME      ENDPOINTS                         AGE
 summary   10.48.128.1:80,10.48.128.192:80   2d2h
 ```
@@ -100,11 +99,11 @@ As per the previous output, the `summary` service has two endpoints (`10.48.128.
 
 Let's examine the KUBE-SERVICE chain.
 
-```
+```bash
 sudo iptables -v --numeric --table nat --list KUBE-SERVICES | column -t
 ```
 
-```
+```bash
 Chain  KUBE-SERVICES  (2                         references)
 pkts   bytes          target                     prot         opt  in  out  source     destination
 8      480            KUBE-SVC-3NJEN5CBT7DGINLD  tcp          --   *   *    0.0.0.0/0  10.49.69.235   /*  tigera-elasticsearch/tigera-secure-es-gateway-http:es-gateway-elasticsearch-port  cluster  IP          */     tcp   dpt:9200
@@ -148,11 +147,11 @@ Each iptables chain consists of a list of rules that are executed in order until
 
 Now let's look more closely at the rules for the `summary` service.
 
-```
-sudo iptables -v --numeric --table nat --list KUBE-SERVICES | grep -E summary | column -t
+```bash
+sudo iptables -v --numeric --table nat --list KUBE-SERVICES | column -t | grep -E summary 
 ```
 You should see an output similar to the following.
-```
+```bash
 0  0  KUBE-SVC-OIQIZJVJK6E34BR4  tcp  --  *  *  0.0.0.0/0  10.49.80.32  /*  yaobank/summary:http  cluster  IP  */  tcp  dpt:80
 ```
 
@@ -164,11 +163,11 @@ The rule above directs traffic destined for the summary service clusterIP (`10.4
 
 Let's examine how this loadbalancing works among the Kubernetes service endpoints. (Remember your chain name may be different than this example.)
 
-```
+```bash
 sudo iptables -v --numeric --table nat --list KUBE-SVC-OIQIZJVJK6E34BR4 | column -t
 ```
 
-```
+```bash
 Chain  KUBE-SVC-OIQIZJVJK6E34BR4  (1                         references)
 pkts   bytes                      target                     prot         opt  in  out  source         destination
 0      0                          KUBE-MARK-MASQ             tcp          --   *   *    !10.48.0.0/16  10.49.80.32  /*  yaobank/summary:http  cluster  IP         */    tcp     dpt:80
@@ -188,11 +187,11 @@ If there were 3 service endpoints, then the first chain match would be probabili
 #### Inspect a service endpoint chain
 
 Let's look at one of the service endpoint chains. (Remember your chain names may be different than this example.)
-```
+```bash
 sudo iptables -v --numeric --table nat --list KUBE-SEP-NCOI6JAXVX2D4BXJ | column -t
 ```
 
-```
+```bash
 Chain  KUBE-SEP-NCOI6JAXVX2D4BXJ  (1              references)
 pkts   bytes                      target          prot         opt  in  out  source         destination
 0      0                          KUBE-MARK-MASQ  all          --   *   *    10.48.128.192  0.0.0.0/0    /*  yaobank/summary:http  */
@@ -222,11 +221,11 @@ ________________________________________________________________________________
 
 Let's explore the iptables rules that implement the `customer` service. Find the service endpoints for `customer` `NodePort` service. Keep using `worker1` to follow the instructions.
 
-```
+```bash
 kubectl get endpoints -n yaobank customer
 ```
 
-```
+```bash
 NAME       ENDPOINTS       AGE
 customer   10.48.0.43:80   2d2h
 ```
@@ -237,11 +236,11 @@ The `customer` service has one endpoint (`10.48.0.43` on port `80` in this examp
 
 **Note:** The `KUBE-SERVICE` chain handles the matching for service types `ClusterIP` and `LoadBalancer`. At the end of `KUBE-SERVICE` chain, another custom chain `KUBE-NODEPORTS` will handle traffic for service type `NodePort`.
 
-```
+```bash
 sudo iptables -v --numeric --table nat --list KUBE-SERVICES | grep KUBE-NODEPORTS | column -t
 ```
 
-```
+```bash
 80  4836  KUBE-NODEPORTS  all  --  *  *  0.0.0.0/0  0.0.0.0/0  /*  kubernetes  service  nodeports;  NOTE:  this  must  be  the  last  rule  in  this  chain  */  ADDRTYPE  match  dst-type  LOCAL
 ```
 
@@ -251,11 +250,11 @@ sudo iptables -v --numeric --table nat --list KUBE-SERVICES | grep KUBE-NODEPORT
 
 Now let's look more closely at the rules for the `customer` service.
 
-```
+```bash
 sudo iptables -v --numeric --table nat --list KUBE-NODEPORTS | column -t
 ```
 
-```
+```bash
 Chain  KUBE-NODEPORTS  (1                         references)
 pkts   bytes           target                     prot         opt  in  out  source     destination
 0      0               KUBE-SVC-PX5FENG4GZJTCELT  tcp          --   *   *    0.0.0.0/0  0.0.0.0/0    /*  yaobank/customer:http  */  tcp  dpt:30180
@@ -269,11 +268,11 @@ The rule above directs traffic destined for the `customer` service to the chain 
 
 Let's examine how this loadbalancing works among the Kubernetes service endpoints. (Remember your chain name may be different than this example.)
 
-```
+```bash
 sudo iptables -v --numeric --table nat --list KUBE-SVC-PX5FENG4GZJTCELT | column -t
 ```
 
-```
+```bash
 Chain  KUBE-SVC-PX5FENG4GZJTCELT  (2                         references)
 pkts   bytes                      target                     prot         opt  in  out  source         destination
 0      0                          KUBE-MARK-MASQ             tcp          --   *   *    !10.48.0.0/16  10.49.60.52  /*  yaobank/customer:http  cluster  IP   */         tcp  dpt:80
@@ -287,11 +286,11 @@ As we only have a single backing pod for the `customer` service, there is no loa
 
 Finally, lets' look into the KUBE-SEP-XXXXXXXXXXXXXXXX to `customer` endpoint. This rule delivers the packet to the `customer` service endpoint.
 
-```
+```bash
 sudo iptables -v --numeric --table nat --list KUBE-SEP-GNFCEQXJBZQ2TQAR | column -t
 ```
 
-```
+```bash
 Chain  KUBE-SEP-GNFCEQXJBZQ2TQAR  (1              references)
 pkts   bytes                      target          prot         opt  in  out  source      destination
 0      0                          KUBE-MARK-MASQ  all          --   *   *    10.48.0.43  0.0.0.0/0    /*  yaobank/customer:http  */
@@ -299,6 +298,15 @@ pkts   bytes                      target          prot         opt  in  out  sou
 ```
 
 The second rule performs the DNAT that changes the destination IP from the service's NodePort to the IP address of the service endpoint backing pod (`10.48.0.43` in this example). After this, standard Linux routing can handle forwarding the packet like it would for any other packet.
+
+
+#### Exit the worker node.
+
+```bash
+exit
+```
+
+
 
 **Recap**
 
@@ -323,11 +331,11 @@ Calico Enterprise BGP service advertisement allows you to directly access the se
 
 let's start by taking a look at the state of routes on the `bastion` node. If you completed the previous lab correctly, you should see one route that was learned from Calico that provides access to the nginx pod that was created in the externally routable namespace (the route ending in `proto bird` in this example output). In this section, we will advertise Kubernetes services rather than individual pods over BGP.
 
-```
+```bash
 ip route
 ```
 
-```
+```bash
 default via 10.0.1.1 dev ens5 proto dhcp src 10.0.1.10 metric 100 
 10.0.1.0/24 dev ens5 proto kernel scope link src 10.0.1.10 
 10.0.1.1 dev ens5 proto dhcp scope link src 10.0.1.10 metric 100 
@@ -340,66 +348,57 @@ Run the following command and ensure that there is no bgpconfigurations in your 
 
 **Note:** A BGPConfiguration resource (BGPConfiguration) represents BGP specific configuration options for the cluster or a specific node. The resource with the name `default` has a specific meaning and contains the BGP global default configuration. By default, there is no BGPConfiguration resource deployed in the cluster. However, Once BGP is activated, Calico has default built-in configurations for BGP in its data model. For example, it use 64512 as the default AS number.
 
-```
+```bash
 kubectl get bgpconfigurations
 ```
 You should receive the following output.
-```
-No resources found
+```bash
+NAME      CREATED AT
+default   2026-10-05T18:27:40Z
 ```
 
 #### Apply the default BGP configuration
 
 Examine the following default BGP configuration and then apply it.
 
-```
-kubectl apply -f -<<EOF
-apiVersion: projectcalico.org/v3
-kind: BGPConfiguration
-metadata:
-  name: default
-spec:
-  serviceClusterIPs:
-  - cidr: "10.49.0.0/16"
-EOF
-
+```bash
+kubectl patch bgpconfigurations default --type=merge -p '{"spec":{"serviceClusterIPs":[{"cidr":"10.49.0.0/16"}]}}'
 ```
 The `serviceClusterIPs` parameter tells Calico to advertise the cluster IP range.
-
 
 #### Verify the BGPConfiguration
 
 Verify the BGPConfiguration just implemented.
 
-```
+```bash
 kubectl get bgpconfigurations default -o yaml
 ```
 
-```
+```yaml
 apiVersion: projectcalico.org/v3
 kind: BGPConfiguration
 metadata:
-  annotations:
-    kubectl.kubernetes.io/last-applied-configuration: |
-      {"apiVersion":"projectcalico.org/v3","kind":"BGPConfiguration","metadata":{"annotations":{},"name":"default"},"spec":{"serviceClusterIPs":[{"cidr":"10.49.0.0/16"}]}}
-  creationTimestamp: "2023-01-01T20:50:02Z"
+  creationTimestamp: "2026-10-05T18:27:40Z"
+  generation: 2
   name: default
-  resourceVersion: "777183"
-  uid: 491661bb-d525-44c1-89a9-f4562f614232
+  resourceVersion: "620115"
+  uid: 42d684af-2108-4e4b-ad35-59180842ca34
 spec:
+  logSeverityScreen: Info
   serviceClusterIPs:
   - cidr: 10.49.0.0/16
+  serviceLoadBalancerAggregation: Enabled
 ```
 
 #### Re-examine the routes on the bastion node
 
 Now that we have enabled Service ClusterIP advertisement, let's examine the routes on `bastion` node again.
 
-```
+```bash
 ip route
 ```
 
-```
+```bash
 default via 10.0.1.1 dev ens5 proto dhcp src 10.0.1.10 metric 100 
 10.0.1.0/24 dev ens5 proto kernel scope link src 10.0.1.10 
 10.0.1.1 dev ens5 proto dhcp scope link src 10.0.1.10 metric 100 
@@ -417,12 +416,12 @@ You should now see the cluster service cidr `10.49.0.0/16` advertised from each 
 
 Let's verify connectivity through the clusterIP. Find the cluster IP for the `customer` service.
 
-```
+```bash
 kubectl get svc -n yaobank customer
 
 ```
 
-```
+```bash
 NAME       TYPE       CLUSTER-IP    EXTERNAL-IP   PORT(S)        AGE
 customer   NodePort   10.49.60.52   <none>        80:30180/TCP   2d3h
 ```
@@ -433,12 +432,12 @@ In this case, the ClusterIP is `10.49.60.52`. Your IP may be different.
 
 Confirm you can access it from the `bastion` host.
 
-```
+```bash
 curl 10.49.60.52
 
 ```
 
-```
+```bash
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
   "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
 
@@ -485,11 +484,11 @@ https://docs.tigera.io/networking/advertise-service-ips
 
 Let's start by updating the `customer` service to add `externalTrafficPolicy: Local`.
 
-```
+```bash
 kubectl patch svc -n yaobank customer -p '{"spec":{"externalTrafficPolicy":"Local"}}'
 ```
 
-```
+```bash
 service/customer patched
 ```
 
@@ -497,11 +496,11 @@ service/customer patched
 
 Examine the routes on bastion node.
 
-```
+```bash
 ip route
 ```
 
-```
+```bash
 default via 10.0.1.1 dev ens5 proto dhcp src 10.0.1.10 metric 100 
 10.0.1.0/24 dev ens5 proto kernel scope link src 10.0.1.10 
 10.0.1.1 dev ens5 proto dhcp scope link src 10.0.1.10 metric 100 
@@ -517,12 +516,12 @@ default via 10.0.1.1 dev ens5 proto dhcp src 10.0.1.10 metric 100
 
 You should now have a `/32` route for the yaobank customer service (`10.49.60.52` in the above example output) advertised from the node hosting the customer service pod (`10.0.1.31` in this example output).
 
-```
+```bash
 kubectl get pods -n yaobank -l app=customer -o wide
 
 ```
 
-```
+```bash
 NAME                        READY   STATUS    RESTARTS   AGE    IP           NODE                                      NOMINATED NODE   READINESS GATES
 customer-687b8d8f74-tcclp   1/1     Running   0          2d3h   10.48.0.43   ip-10-0-1-31.eu-west-1.compute.internal   <none>           <none>
 ```
@@ -540,7 +539,7 @@ In the previous labs, we accessed the yaobank frontend UI using curl from the `c
 
 The following should fail because of `externalTrafficPolicy: Local` configured on the `customer` service.
 
-```
+```bash
 curl 10.0.1.20:30180
 
 ```
@@ -548,11 +547,11 @@ curl 10.0.1.20:30180
 
 The following should go through. Please make sure to use the node IP address where customer pod is running. 
 
-```
+```bash
 curl 10.0.1.31:30180
 
 ```
-```
+```bash
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
   "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
 
@@ -582,644 +581,38 @@ curl 10.0.1.31:30180
 _____________________________________________________________________________________________________________________________________________________________________
 
 
-### Expose a service using Ingress resource
+### Clean up
 
-Kubernetes Ingress is an API object that provides routing rules to manage external users' access to the services in a Kubernetes cluster, typically via HTTPS/HTTP. With Ingress, you can easily set up rules for routing traffic without creating a bunch of Load Balancers or exposing each service on the node. [IBM Source](https://www.ibm.com/cloud/blog/kubernetes-ingress#:~:text=Kubernetes%20Ingress%20is%20an%20API,each%20service%20on%20the%20node.)
+Undo the changes made in this lab before moving on to the next lab.
 
-In this section, we will use an ingress controller to expose the Yaobank Customer service.
+#### Stop advertising the service cluster IP range
 
-#### Remove the previous yaobank deployment
+Undo the change you made to the `default` BGPConfiguration earlier in this lab. Setting `serviceClusterIPs` to `null` removes the field, so Calico stops advertising the service cluster IP range. The rest of the BGPConfiguration stays as it was.
 
-Let's start with removing the previous yaobank deployment and proceed to deploying the new configuration. For simplicity, let's just remove the namespace, which deletes all included objects. It might take 1-2 minutes for the namespace to get deleted. Please wait until the namespace is deleted.
-
-```
-kubectl delete ns yaobank
-
+```bash
+kubectl patch bgpconfigurations default --type=merge -p '{"spec":{"serviceClusterIPs":null}}'
 ```
 
-#### Examine the deployed ingress controller
+Verify the field is gone. The command should print an empty line:
 
-Deploy an ingress controller that listens to all namespaces.
-
-Ingress is the built-in kubernetes framework for load-balancing http traffic. Cloud providers offer a similar functionality out of the box via cloud load-balancers. Ingress allows the manipulation of incoming http requests, natting/routing traffic to back-end services based on provided host/path, or even passing-through traffic. It can effectively provide L7-based policies and typical load-balancing features such as stickiness, health probes, or weight-based load-balancing.
-
-Let's start with examining the already deployed ingress controller.
-
-```
-kubectl get all -n ingress-nginx
+```bash
+kubectl get bgpconfigurations default -o jsonpath='{.spec.serviceClusterIPs}{"\n"}'
 ```
 
-```
-NAME                                       READY   STATUS      RESTARTS   AGE
-pod/ingress-nginx-admission-create-5sc7j   0/1     Completed   0          2d22h
-pod/ingress-nginx-admission-patch-mx6rf    0/1     Completed   0          2d22h
-pod/ingress-nginx-controller-9rxrv         1/1     Running     0          2d22h
-pod/ingress-nginx-controller-vdsbl         1/1     Running     0          2d22h
+#### Delete the BGP peer
 
-NAME                                         TYPE        CLUSTER-IP     EXTERNAL-IP   PORT(S)   AGE
-service/ingress-nginx-controller-admission   ClusterIP   10.49.242.76   <none>        443/TCP   2d22h
+Delete the BGPPeer to the bastion node that you created in the previous lab.
 
-NAME                                      DESIRED   CURRENT   READY   UP-TO-DATE   AVAILABLE   NODE SELECTOR            AGE
-daemonset.apps/ingress-nginx-controller   2         2         2       2            2           kubernetes.io/os=linux   2d22h
-
-NAME                                       COMPLETIONS   DURATION   AGE
-job.batch/ingress-nginx-admission-create   1/1           8s         2d22h
-job.batch/ingress-nginx-admission-patch    1/1           10s        2d22h
-```
-
-Key things to look in the output are:
-
-* The ingress has been deployed as a DaemonSet to be run on each of the worker nodes, so you should have two of them running.
-* The ingress controller uses a service of type ClusterIP listening on port 443.
-
-Nginx ingress controller, by default, listens to all namespaces. Once an Ingress object is created in any namespace, it will create the necessary rules to forward the traffic. This default behaviour can be modified to limit ingress controller to a specific namespace.
-
-Currently we have not created any ingress resource in the yaobank namespace yet. So if we try to access our lab instance on port 443 using our browser `https:\\yaobank.<LabName>.training.tigera.ca`, we will get a 404 error from our ingress controller.
-
-#### Deploy the new instance of the yaobank app
-
-Deploy the new instance of yaobank app.
-
-```
-kubectl apply -f -<<EOF
-apiVersion: v1
-kind: Namespace
-apiVersion: v1
-metadata:
-  name: yaobank
-  labels:
-    istio-injection: disabled
-
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: database
-  namespace: yaobank
-  labels:
-    app: database
-spec:
-  ports:
-  - port: 2379
-    name: http
-  selector:
-    app: database
----
-apiVersion: v1
-kind: ServiceAccount
-metadata:
-  name: database
-  namespace: yaobank
-  labels:
-    app: yaobank
----
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: database
-  namespace: yaobank
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: database
-      version: v1
-  template:
-    metadata:
-      labels:
-        app: database
-        version: v1
-    spec:
-      serviceAccountName: database
-      containers:
-      - name: database
-        image: calico/yaobank-database:certification
-        imagePullPolicy: IfNotPresent
-        ports:
-        - containerPort: 2379
-        command: ["etcd"]
-        args:
-          - "-advertise-client-urls"
-          - "http://database:2379"
-          - "-listen-client-urls"
-          - "http://0.0.0.0:2379"
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: summary
-  namespace: yaobank
-  labels:
-    app: summary
-spec:
-  ports:
-  - port: 80
-    name: http
-  selector:
-    app: summary
----
-apiVersion: v1
-kind: ServiceAccount
-metadata:
-  name: summary
-  namespace: yaobank
-  labels:
-    app: yaobank
-    database: reader
----
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: summary
-  namespace: yaobank
-spec:
-  replicas: 2
-  selector:
-    matchLabels:
-      app: summary
-      version: v1
-  template:
-    metadata:
-      labels:
-        app: summary
-        version: v1
-    spec:
-      serviceAccountName: summary
-      containers:
-      - name: summary
-        image: calico/yaobank-summary:certification
-        imagePullPolicy: Always
-        ports:
-        - containerPort: 80
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: customer
-  namespace: yaobank
-  labels:
-    app: customer
-spec:
-  ports:
-  - port: 80
-    name: http
-  selector:
-    app: customer
----
-apiVersion: v1
-kind: ServiceAccount
-metadata:
-  name: customer
-  namespace: yaobank
-  labels:
-    app: yaobank
-    summary: reader
----
-
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: customer
-  namespace: yaobank
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: customer
-      version: v1
-  template:
-    metadata:
-      labels:
-        app: customer
-        version: v1
-    spec:
-      serviceAccountName: customer
-      containers:
-      - name: customer
-        image: calico/yaobank-customer:certification
-        imagePullPolicy: Always
-        ports:
-        - containerPort: 80
-EOF
-
-```
-
-#### Verify the yaobank pods are running
-
-Make sure the yaobank pods are running.
-
-```
-kubectl get pods -n yaobank
-
-```
-```
-NAME                        READY   STATUS    RESTARTS   AGE
-customer-687b8d8f74-hdr6f   1/1     Running   0          21m
-database-545f6d6d95-5m4k2   1/1     Running   0          21m
-summary-7579bd9566-hjkjt    1/1     Running   0          21m
-summary-7579bd9566-k6z4s    1/1     Running   0          21m
-```
-
-#### Create the Ingress resource
-
-Before applying the following manifest, make sure to update the `host` name by replacing `<LABNAME>` with the name of your lab instance in the following Ingress resources.
-
-
-```
-kubectl apply -f -<<EOF
-apiVersion: networking.k8s.io/v1
-kind: Ingress
-metadata:
-  annotations:
-    kubernetes.io/ingress.class: "nginx"
-  name: yaobank
-  namespace: yaobank
-spec:
-  rules:
-  - host: "yaobank.<LABNAME>.training.tigera.ca"
-    http:
-      paths:
-      - path: /
-        pathType: Prefix
-        backend:
-          service:
-            name: customer
-            port:
-              number: 80
-EOF
-
-```
-
-#### Verify the Ingress resource
-
-Verify that the ingress resource has been successfully deployed.
-
-```
-kubectl get ingress -n yaobank
-
-```
-
-```
-NAME      CLASS    HOSTS                                 ADDRESS               PORTS   AGE
-yaobank   <none>   yaobank.cenetworking.training.tigera.ca   10.0.1.30,10.0.1.31   80      36s
-```
-
-#### Access the customer service through the browser
-
-Check the connectivity to the customer service `https:\\yaobank.<LabName>.training.tigera.ca` via your browser. 
-
-![yaobank](img/1.yaobank-ingress-access.JPG)
-
-#### Confirm the customer service no longer uses a NodePort
-
-Note we do not use a NodePort service anymore for our customer application in this last manifest as now we use the ingress to access it.
-
-```
-kubectl get svc -n yaobank
-
-```
-
-```
-NAME       TYPE        CLUSTER-IP      EXTERNAL-IP   PORT(S)    AGE
-customer   ClusterIP   10.49.39.77     <none>        80/TCP     22m
-database   ClusterIP   10.49.100.163   <none>        2379/TCP   22m
-summary    ClusterIP   10.49.102.204   <none>        80/TCP     22m
+```bash
+kubectl delete bgppeers bgppeer-global-64512
 ```
 
 #### Delete the yaobank namespace
 
-We will need to use yaobank application using NodePort service in the next lab. Let's delete the yaobank namespace as we will need to deploy it again.
+The yaobank application is deployed again in a later lab. Delete its namespace for now.
 
-```
+```bash
 kubectl delete namespace yaobank
-```
-
-______________________________________________________________________________________________________________________________________________________________________
-
-
-### Configure kube-proxy to use IPVS mode
-
-
-Kube-proxy can run in three different modes, which are user-space proxy mode, iptables proxy mode and IPVS proxy mode. IPVS uses the netlink interface to create IPVS rules for the services. IPVS is also the component that redirects the traffic to the endpoints. Similar to iptables mode, IPVS is also implemented at the Linux kernel level, but it uses hash table for the underlying data structure. As a result, it handles the traffic with lower latency compared to iptables mode. IPVS mode provides greater scale and performance compared iptables mode when it comes to large number of services. In this lab, we will configure kube-proxy to use IPVS mode.
-
-#### Load kernel modules and install ipvsadm and ipset
-
-Let start by loading the below required kernel modules and install `ipvsadm` and `ipset` on all the nodes. SSH into each cluster node `control1` `worker1` `worker2` and run the below commands.
-
-```
-sudo apt install -y ipvsadm ipset
-
-```
-Load the kernel modules.
-
-```
-sudo modprobe ip_vs 
-sudo modprobe ip_vs_rr
-sudo modprobe ip_vs_wrr 
-sudo modprobe ip_vs_sh
-sudo modprobe nf_conntrack
-sudo sysctl --system
-sudo sysctl -p
-
-```
-
-#### Verify the kernel modules are loaded
-
-Check that the kernel modules are loaded. Check all the three nodes.
-
-```
-lsmod | grep -e ip_vs -e nf_conntrack
-cut -f1 -d " " /proc/modules | grep -e ip_vs -e nf_conntrack
-
-```
-
-#### Enable IPVS mode in the kube-proxy ConfigMap
-
-To enable IPVS mode, edit the kube-proxy's `configmap` by changing the `mode` from "" to `ipvs`.
-
-```
-kubectl -n kube-system edit cm kube-proxy
-
-```
-
-Below is a sample configuration.
-
-![kube-proxy-configmap](img/2.kube-proxy-ipvs-mode.JPG)
-
-
-#### Restart the kube-proxy pods
-
-Delete all the running kube-proxy pods to load the new configuration.
-
-```
-for i in $(kubectl get pods -n kube-system -o name | grep kube-proxy) ; do kubectl delete $i -n kube-system ; done
-
-```
-
-#### Check the new kube-proxy pod logs
-
-Check the logs of new kube-proxy pods
-
-```
-for i in $(kubectl get pods -n kube-system -o name | grep kube-proxy) ; do kubectl logs $i -n kube-system | grep "Using ipvs Proxier" ; done
-
-```
-
-#### Confirm IPVS mode is active in the logs
-
-If you are able to find the following String in the logs, IPVS mode is being used by the cluster. You can also check the detailed logs for the IPVS mode.
-
-```
-I0103 00:16:08.955456       1 server_others.go:269] "Using ipvs Proxier"
-I0103 00:16:10.305447       1 server_others.go:269] "Using ipvs Proxier"
-I0103 00:16:07.787211       1 server_others.go:269] "Using ipvs Proxier"
-```
-
-#### Verify IPVS rules with ipvsadm
-
-Users can use ipvsadm tool to check whether kube-proxy are maintaining IPVS rules correctly. This can be done from any of the cluster nodes, but not from the bastion node. In this example, we will use the kubernetes APIserver service to check on the relevant rules. You can follow the below procedure to check on the IPVS loadbalancing rules for other services in the cluster.
-
-```
-ssh worker1
-
-```
-
-```
-kubectl get svc
-
-``` 
-
-```
-NAME         TYPE        CLUSTER-IP   EXTERNAL-IP   PORT(S)   AGE
-kubernetes   ClusterIP   10.49.0.1    <none>        443/TCP   4d2h
-```
-
-#### Check the IPVS proxy rules for the APIServer service
-
-As the APIServer has a single endpoint because our cluster only has one master node, we can grep a single line below the Cluster IP to check the IPVS proxy rules for it. Following are the IPVS proxy rules for above services
-
-```
-sudo ipvsadm -ln | grep -A1 10.49.0.1:443
-
-```
-
-```
-TCP  10.49.0.1:443 rr
-  -> 10.0.1.20:6443               Masq    1      1          0   
-```
-
-#### Create an nginx deployment and service
-
-let's create a `nginx-deployment` and a `service` and observe how `ipvs` loadbalancing works.
-
-
-```
-kubectl apply -f - <<EOF
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: nginx-deployment
-  labels:
-    app: nginx
-spec:
-  replicas: 3
-  selector:
-    matchLabels:
-      app: nginx
-  template:
-    metadata:
-      labels:
-        app: nginx
-    spec:
-      containers:
-      - name: nginx
-        image: nginx:1.14.2
-        ports:
-        - containerPort: 80
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: service-nginx
-spec:
-  selector:
-    app: nginx
-  ports:
-  - protocol: TCP
-    port: 80
-EOF
-
-```
-
-#### Examine the ClusterIP of the service-nginx service
-
-Examine the ClusterIP of `service-nginx` service.
-
-```
-kubectl get svc service-nginx
-
-```
-
-```
-NAME            TYPE        CLUSTER-IP     EXTERNAL-IP   PORT(S)   AGE
-service-nginx   ClusterIP   10.49.20.211   <none>        80/TCP    70s
-```
-
-#### List the IPVS table for the service
-
-Now let's list the ipvs table and check how the service mapping to pods are created using deployment. (This command needs to be run from one of the worker nodes).
-
-```
-sudo ipvsadm -l | grep -A3 $(kubectl get svc service-nginx --no-headers | awk {'print $3'})
-
-```
-
-#### Interpret the IPVS service-to-pod mapping
-
-Here `ip-10-49-20-211.eu-west-1.co` is the `service-nginx` service and below the service you can see the list of pods/endpoints. `rr` means the loadbalancing used is `round-robin`.
-
-```
-TCP  ip-10-49-20-211.eu-west-1.co rr
-  -> ip-10-48-0-37.eu-west-1.comp Masq    1      0          0         
-  -> ip-10-48-0-38.eu-west-1.comp Masq    1      0          0         
-  -> ip-10-48-0-208.eu-west-1.com Masq    1      0          0 
-```
-
-#### Check connectivity to the service-nginx service
-
-Check connectivity to the `service-nginx` service from any of the worker nodes.
-
-```
-ssh worker1
-
-```
-
-```
-curl 10.49.20.211
-
-```
-
-```
-<!DOCTYPE html>
-<html>
-<head>
-<title>Welcome to nginx!</title>
-<style>
-    body {
-        width: 35em;
-        margin: 0 auto;
-        font-family: Tahoma, Verdana, Arial, sans-serif;
-    }
-</style>
-</head>
-<body>
-<h1>Welcome to nginx!</h1>
-<p>If you see this page, the nginx web server is successfully installed and
-working. Further configuration is required.</p>
-
-<p>For online documentation and support please refer to
-<a href="http://nginx.org/">nginx.org</a>.<br/>
-Commercial support is available at
-<a href="http://nginx.com/">nginx.com</a>.</p>
-
-<p><em>Thank you for using nginx.</em></p>
-</body>
-</html>
-```
-
-
-#### Prepare two terminal sessions on worker1
-
-Let's check on IPVS load balancing. Open two terminal sessions and SSH into worker1. Note that both of the following commands need to run from the same host.
-
-```
-ssh worker1
-
-```
-
-#### Monitor the IPVS packet rate
-
-Run the following command to analyze the packet flow per second in IPVS mode. Initially, all the traffic counters need to be zero for `service-nginx`.
-
-```
-watch sudo ipvsadm -L -n --rate
-
-```
-
-#### Generate traffic to the service
-
-Run the following script to generate traffic for the `service-nginx` service and check the output stats in other terminal again. This time you should see the traffic counters increasing. Please make sure to replace the correct service IP in the following command.
-
-```
-for i in {1..30}; do  curl <service-ip>:80 ; done
-```
-
-#### Observe traffic distribution across the pods
-
-You should see the traffic getting distributed among the pods using `rr algorithm`. Following is a sample output.
-
-```
-Every 2.0s: sudo ipvsadm -L -n --rate                                                                              ip-10-0-1-30.eu-west-1.compute.internal: Tue Jan  3 00:58:23 2023
-
-IP Virtual Server version 1.2.1 (size=4096)
-Prot LocalAddress:Port                 CPS    InPPS   OutPPS    InBPS   OutBPS
-  -> RemoteAddress:Port
-TCP  10.49.0.1:443                       0        2        2      172     2073
-  -> 10.0.1.20:6443                      0        2        2      172     2073
-TCP  10.49.0.10:53                       0        1        1       79       77
-  -> 10.48.0.1:53                        0        1        0       50       49
-  -> 10.48.0.192:53                      0        0        0       30       29
-TCP  10.49.0.10:9153                     0        0        0        0        0
-  -> 10.48.0.1:9153                      0        0        0        0        0
-  -> 10.48.0.192:9153                    0        0        0        0        0
-TCP  10.49.20.211:80                     0        1        1       95      236
-  -> 10.48.0.37:80                       0        0        0       31       79
-  -> 10.48.0.38:80                       0        0        0       31       79
-  -> 10.48.0.208:80                      0        0        0       31       79
-TCP  10.49.22.249:9094                   0        0        0        0        0
-  -> 10.48.0.195:9094                    0        0        0        0        0
-TCP  10.49.31.204:9200                   0        5        3      909    46639
-  -> 10.48.0.200:9200                    0        5        3      909    46639
-TCP  10.49.39.77:80                      0        0        0        0        0
-  -> 10.48.0.53:80                       0        0        0        0        0
-TCP  10.49.47.211:9200                   0        0        0        0        0
-  -> 10.48.0.200:9200                    0        0        0        0        0
-TCP  10.49.69.235:5601                   0        0        0        0        0
-  -> 10.48.0.9:5554                      0        0        0        0        0
-  -> 10.48.0.202:5554                    0        0        0        0        0
-TCP  10.49.69.235:9200                   0        2        1     1142      765
-  -> 10.48.0.9:5554                      0        1        1     1035      527
-  -> 10.48.0.202:5554                    0        1        0      107      238
-TCP  10.49.75.250:9090                   0        0        0        0        0
-  -> 10.48.0.7:9095                      0        0        0        0        0
-TCP  10.49.100.163:2379                  0        0        0        0        0
-  -> 10.48.0.51:2379                     0        0        0        0        0
-TCP  10.49.102.204:80                    0        0        0        0        0
-  -> 10.48.0.52:80                       0        0        0        0        0
-  -> 10.48.0.207:80                      0        0        0        0        0
-TCP  10.49.105.153:9093                  0        0        0        0        0
-```
-
-#### Clean up the BGP configuration and BGP peer
-
-Clean up the bgpconfiguration and bgppeer resource previously configured.
-
-```
-kubectl delete bgpconfigurations default
-
-```
-```
-kubectl delete bgppeers bgppeer-global-64512
-
-```
-
-#### Switch back to iptables mode
-
-Switch back to `iptables` mode. Edit the kube-proxy's `configmap` by changing the `mode` from `ipvs` to "".
-
-```
-kubectl -n kube-system edit cm kube-proxy
-
 ```
 
 

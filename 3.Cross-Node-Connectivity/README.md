@@ -33,11 +33,11 @@ VXLAN is one of the two supported overlay technologies in Calico Enterprise CNI 
 
 Networking mode used in the cluster is a configuration specified in the IPPool resource. Let's examine the default IPPool. The two configuration parameters `ipipMode: Never` and `vxlanMode: Never` tells us that this cluster is configured to use native bgp to exchange routing information.
 
-```
+```bash
 kubectl get ippools default-ipv4-ippool -o yaml
 ```
 
-```
+```yaml
 apiVersion: projectcalico.org/v3
 kind: IPPool
 metadata:
@@ -61,18 +61,18 @@ spec:
 
 Let's ssh into one of the cluster nodes and examine the current networking configurations of the node.
 
-```
+```bash
 ssh control1
 ```
 
 #### Verify there is no VXLAN interface
 
 Check the network interface on the node and make sure there is no VXLAN interface.
-
-```
+**Note:** If VXLAN is enabled, you see an interface named `vxlan.calico` on the output below.
+```bash
 ip -c link
 ```
-```
+```bash
 1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 qdisc noqueue state UNKNOWN mode DEFAULT group default qlen 1000
     link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00
 2: ens5: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 9001 qdisc mq state UP mode DEFAULT group default qlen 1000
@@ -98,10 +98,10 @@ ip -c link
 
 Let's examine the node routing table. We do not see any routes related to VXLAN in the following routing table (You can compare this output with the output of the node routing table when VXLAN is enabled below). We also see that bird is used to exchange routing information on this node. One example of such route is `10.48.0.192/26 via 10.0.1.30 dev ens5 proto bird `. 
 
-```
+```bash
 ip route
 ```
-```
+```bash
 default via 10.0.1.1 dev ens5 proto dhcp src 10.0.1.20 metric 100 
 10.0.1.0/24 dev ens5 proto kernel scope link src 10.0.1.20 
 10.0.1.1 dev ens5 proto dhcp scope link src 10.0.1.20 metric 100 
@@ -122,21 +122,27 @@ blackhole 10.48.0.128/26 proto bird
 
 Exit the ssh mode from control1.
 
-```
+```bash
 exit
 ```
 
 #### Enable VXLAN mode on the default IPPool
 
-Use the following command to configure the default IPPool to use vxlanMode by setting `vxlanMode: Always`. Then save and exit.
+Use the following command to configure the default IPPool to use vxlanMode by setting `vxlanMode: Always`. 
+**Note:** Pay attention to how we use the installation resouce using the installation resource. The reason is that this resource was created using the installation resource by the tigera-operator and hence it is managed by tigera-operator. 
 
-```
-kubectl edit ippools default-ipv4-ippool
+```bash
+kubectl patch installation default --type=json \
+  -p '[{"op":"replace","path":"/spec/calicoNetwork/ipPools/0/encapsulation","value":"VXLAN"}]'
 ```
 
 You should see an output similar to the following.
 
+```bash
+kubectl get ippools default-ipv4-ippool -o yaml
 ```
+
+```bash
 apiVersion: projectcalico.org/v3
 kind: IPPool
 metadata:
@@ -160,10 +166,10 @@ spec:
 
 Let's check on the configured interfaces on the node resource. We can see that all the nodes have got a VXLAN interface. This interface was added after we enabled VXLAN networking in the IPPool resource. calico-node watches the IPPool resource and as soon as the resource is configured to use VXLAN, it will configure the VXLAN device on the nodes. Make note of each node's VXLAN interface IP address. We will use them in the next steps.
 
-```
+```bash
 kubectl get nodes -o yaml | grep -B1 -i vxlan
 ```
-```
+```bash
       projectcalico.org/IPv4Address: 10.0.1.20/24
       projectcalico.org/IPv4VXLANTunnelAddr: 10.48.0.135
 --
@@ -179,7 +185,7 @@ kubectl get nodes -o yaml | grep -B1 -i vxlan
 
 ssh into control1 again.
 
-```
+```bash
 ssh control1
 ```
 
@@ -187,11 +193,11 @@ ssh control1
 
 Check the network interface on the node again. This time you should see a vxlan interface named `vxlan.calico`. The last interface in the following output.
 
-```
+```bash
 ip -c link
 ```
 
-```
+```bash
 1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 qdisc noqueue state UNKNOWN mode DEFAULT group default qlen 1000
     link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00
 2: ens5: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 9001 qdisc mq state UP mode DEFAULT group default qlen 1000
@@ -217,12 +223,12 @@ ip -c link
 
 #### Examine the routing table with VXLAN enabled
 
-Let's examine the node routing table again. We can see routes related to VXLAN overlay networking as indicted by `10.48.0.192/26 via 10.48.0.206 dev vxlan.calico onlink ` and routes related to native bgp networking as indicated by `10.48.128.0/26 via 10.0.1.31 dev ens5 proto bird `. The reason for having both VXLAN and native bgp networking in this cluster is that we have two IPPools one of which is configured to use VXLAN and the other is configured to use native bgp.
+Let's examine the node routing table again. We can see routes related to VXLAN overlay networking as indicted by `10.48.0.192/26 via 10.48.0.206 dev vxlan.calico onlink ` and routes related to native bgp networking as indicated by `10.48.128.0/26 via 10.0.1.31 dev ens5 proto bird `. The reason for having both VXLAN and native bgp networking in this cluster is that we have two IPPools one of which is configured to use VXLAN and the other is configured to use native bgp. Please note that mixing various overlay modes or overlay mode and non-overlay mode as shown here is not recommended and it is shown here for the sake of training.
 
-```
+```bash
 ip route
 ```
-```
+```bash
 default via 10.0.1.1 dev ens5 proto dhcp src 10.0.1.20 metric 100 
 10.0.1.0/24 dev ens5 proto kernel scope link src 10.0.1.20 
 10.0.1.1 dev ens5 proto dhcp scope link src 10.0.1.20 metric 100 
@@ -250,10 +256,10 @@ Run the following command to see the relevant `VXLAN` ARP entries. Note the foll
 * `10.48.0.206` is the IP address and `66:14:9d:f4:2c:1f` is the mac address of `vxlan.calico` on worker1
 * `10.48.0.46` is the IP address and `66:4b:ff:e1:ef:01` is the mac address of `vxlan.calico` on worker2
 
-```
+```bash
 ip neigh show
 ```
-```
+```bash
 10.48.0.206 dev vxlan.calico lladdr 66:14:9d:f4:2c:1f PERMANENT
 10.0.1.10 dev ens5 lladdr 02:88:a0:32:73:4d REACHABLE
 10.48.0.46 dev vxlan.calico lladdr 66:4b:ff:e1:ef:01 PERMANENT
@@ -273,10 +279,10 @@ Run the following command to see the relevant bridge forward dabase enteries. No
 * `66:14:9d:f4:2c:1f` is the mac address of `vxlan.calico` on worker1 and is accessible via `10.0.1.30`, which is the fabric facing network interface of worker1
 * `66:4b:ff:e1:ef:01` is the mac address of `vxlan.calico` on worker2 and is accessible via `10.0.1.31`, which is the fabric facing network interface of worker2
 
-```
+```bash
 bridge fdb show
 ```
-```
+```bash
 01:00:5e:00:00:01 dev ens5 self permanent
 01:80:c2:00:00:00 dev ens5 self permanent
 01:80:c2:00:00:03 dev ens5 self permanent
@@ -316,22 +322,28 @@ Finally, Felix on each node learns about the other nodes routing information thr
 
 Exit the ssh mode from control1.
 
-```
+```bash
 exit
 ```
 
 #### Reset the default IPPool to native BGP
 
-Reset the default IPPool configuration to native bgp again by setting `vxlanMode: Never`. Then save and exit.
+Reset the default IPPool configuration to native bgp again by setting `vxlanMode: Never`.
 
 
-```
-kubectl edit ippools default-ipv4-ippool
+```bash
+kubectl patch installation default --type=json \
+  -p '[{"op":"replace","path":"/spec/calicoNetwork/ipPools/0/encapsulation","value":"None"}]'
 ```
 
 You should see an output similar to the following.
 
+
+```bash
+kubectl get ippools default-ipv4-ippool -o yaml
 ```
+
+```yaml
 apiVersion: projectcalico.org/v3
 kind: IPPool
 metadata:
@@ -365,7 +377,7 @@ In this section, we'll simulate this use case by creating an additional IPPool t
 
 Let's start by creating a new IPPool for `10.48.2.0/24` that is externally routable.
 
-```
+```yaml
 kubectl apply -f -<<EOF
 apiVersion: projectcalico.org/v3
 kind: IPPool
@@ -383,10 +395,10 @@ EOF
 
 List the currentlly configured IPPools in the cluster.
 
-```
+```bash
 calicoctl get ippools
 ```
-```
+```bash
 NAME                  CIDR             SELECTOR   
 default-ipv4-ippool   10.48.0.0/24     all()      
 external-pool         10.48.2.0/24     all()      
@@ -413,45 +425,45 @@ ________________________________________________________________________________
 
 #### Examine the BGP peering status on a node
 
-Let's start by examining Calico BGP peering status on one of the nodes. There are different methods to find BGP status information, but all these methods require access to `calicoctl` in some form. The reason for this is that bird requires privileged access to the local bird socket to provide status information. In this excerise, we are using `calicoctl` configured as a binary on the node.
+Let's start by examining the Calico BGP peering status on one of the nodes. Calico uses **BIRD** as its BGP daemon. BIRD runs inside the `calico-node` pod on every node and exposes a control socket at `/var/run/calico/bird.ctl`. We query it with `birdcl`, BIRD's command-line client, which ships in the `calico-node` image. Using `kubectl exec`, you can run everything from the `bastion` node, and nothing has to be installed on the cluster nodes.
 
-SSH into worker1.
+#### Find the calico-node pod on worker1
 
+Find the Kubernetes node name of `worker1` (`10.0.1.30`) and the `calico-node` pod that runs on it, and store both in variables:
+
+```bash
+WORKER1_NODE=$(kubectl get nodes -o wide | awk '$6=="10.0.1.30"{print $1}')
+CALICO_NODE_POD=$(kubectl -n calico-system get pod -l k8s-app=calico-node --field-selector spec.nodeName=${WORKER1_NODE} -o name)
+echo ${WORKER1_NODE} ${CALICO_NODE_POD}
 ```
-ssh worker1
+```bash
+ip-10-0-1-30.ca-central-1.compute.internal pod/calico-node-9978b
 ```
-
-Follow the steps provided in [1. Install Calico Enterprise](https://github.com/tigera-cs/Calico-Enterprise-Networking-Training/blob/main/1.%20Install%20Calico%20Enterprise/README.md#install-calico-enterprise-command-line-utility-calicoctl) to install `calicoctl` as a binary on a single host.
 
 #### Check the BGP connection status from worker1
 
-Once `calicoctl` is installed, check the BGP connection status from `worker1` to other nodes (BGPPeers) in the cluster.
+Ask BIRD on `worker1` for the state of its protocols, which include its BGP sessions to the other nodes in the cluster:
 
+```bash
+kubectl -n calico-system exec ${CALICO_NODE_POD} -c calico-node -- birdcl -s /var/run/calico/bird.ctl show protocols | column -t
 ```
-sudo calicoctl node status
+```bash
+BIRD            v0.3.3+birdv1.6.8  ready.                     
+name            proto              table   state  since       info
+static1         Static             master  up     2026-10-05  
+kernel1         Kernel             master  up     2026-10-05  
+device1         Device             master  up     2026-10-05  
+direct1         Direct             master  up     2026-10-05  
+bfd1            BFD                master  up     2026-10-05  
+Mesh_10_0_1_31  BGP                master  up     2026-10-05  Established
+Mesh_10_0_1_20  BGP                master  up     2026-10-05  Established
 ```
-```
-Calico process is running.
 
-IPv4 BGP status
-+--------------+-------------------+-------+------------+-------------+
-| PEER ADDRESS |     PEER TYPE     | STATE |   SINCE    |    INFO     |
-+--------------+-------------------+-------+------------+-------------+
-| 10.0.1.20    | node-to-node mesh | up    | 2022-12-29 | Established |
-| 10.0.1.31    | node-to-node mesh | up    | 2022-12-29 | Established |
-+--------------+-------------------+-------+------------+-------------+
+The rows with `proto` **BGP** are the BGP sessions. Each one is named after its peer: `Mesh_<peer IP>` is a **node-to-node mesh** peer, and `Established` means the session is up and exchanging routes. The other rows are BIRD's internal protocols (static routes, the kernel routing table, interfaces, BFD).
 
-IPv6 BGP status
-No IPv6 peers found.
-```
 #### Confirm there is no external BGP peer
 
-The above output shows that currently Calico on `worker1` is only peering with the other nodes `control1` and `worker2` in the cluster and is not peering with any router outside of the cluster. Exit `worker1`
-
-```
-exit
-```
-
+The above output shows that Calico on `worker1` is currently peering only with the other nodes in the cluster, `worker2` (`10.0.1.31`) and `control1` (`10.0.1.20`). It is not peering with any router outside the cluster.
 
 #### Examine the bastion node's BIRD configuration
 
@@ -459,7 +471,7 @@ Now, let's simulate BGP peering to a router outside of the cluster by peering to
 
 If you are interested to see the standalone bird configurations on `bastion` node, run the following command from the `bastion` node.
 
-```
+```bash
 sudo cat /etc/bird/bird.conf
 ```
 
@@ -467,7 +479,7 @@ sudo cat /etc/bird/bird.conf
 
 Let's add a new BGPPeer by running the following command. Get yourself familiar with the GBPPeer resource. `peerIP` is the IP address of the peering router, which is the `bastion` node in this case. `asNumber` is the AS number of the peering router.
 
-```
+```yaml
 kubectl apply -f -<<EOF
 apiVersion: projectcalico.org/v3
 kind: BGPPeer
@@ -481,52 +493,33 @@ EOF
 ```
 You should receive an output similar to the following.
 
-```
+```bash
 bgppeer.projectcalico.org/bgppeer-global-64512 created
-```
-
-#### SSH into worker1 to re-examine peering
-
-Let's examine the BGP peering from `worker1` node again by doing SSH into the node.
-
-```
-ssh worker1
 ```
 
 #### Verify the new BGP peering with bastion
 
-Check the status of Calico on the node.
+Check the BGP sessions on `worker1` again. If you opened a new shell, set the `CALICO_NODE_POD` variable again first, as shown above.
 
+```bash
+kubectl -n calico-system exec ${CALICO_NODE_POD} -c calico-node -- birdcl -s /var/run/calico/bird.ctl show protocols
 ```
-sudo calicoctl node status
-```
-```
-Calico process is running.
-
-IPv4 BGP status
-+--------------+-------------------+-------+----------+-------------+
-| PEER ADDRESS |     PEER TYPE     | STATE |  SINCE   |    INFO     |
-+--------------+-------------------+-------+----------+-------------+
-| 10.0.1.20    | node-to-node mesh | up    | 17:44:47 | Established |
-| 10.0.1.31    | node-to-node mesh | up    | 17:44:46 | Established |
-| 10.0.1.10    | global            | up    | 20:35:04 | Established |
-+--------------+-------------------+-------+----------+-------------+
-
-IPv6 BGP status
-No IPv6 peers found.
+```bash
+BIRD v0.3.3+birdv1.6.8 ready.
+name     proto    table    state  since       info
+static1  Static   master   up     2026-10-05  
+kernel1  Kernel   master   up     2026-10-05  
+device1  Device   master   up     2026-10-05  
+direct1  Direct   master   up     2026-10-05  
+bfd1     BFD      master   up     2026-10-05  
+Mesh_10_0_1_31 BGP      master   up     2026-10-05  Established   
+Mesh_10_0_1_20 BGP      master   up     2026-10-05  Established   
+Global_10_0_1_10 BGP      master   up     20:35:04    Established   
 ```
 
-The output above shows that Calico is now peered with the bastion node (`10.0.1.10`). This means Calico can share routes to and learn routes from `bastion` node. Note that you should receive a similar output if you run the same command on the other cluster nodes.
+The new row `Global_10_0_1_10` is the session to the bastion node (`10.0.1.10`). `Global_` means it comes from a **global** BGPPeer, one that applies to every node. This means Calico can share routes to and learn routes from `bastion` node. Note that you should receive a similar output on the other cluster nodes: run the same command against their `calico-node` pods.
 
 In a real-world on-prem deployment, you would typically configure Calico nodes within a rack to peer with the ToRs (Top of Rack) routers, and the ToRs are then connected to the rest of the enterprise or data center network. In this way, if desired, pods can be reached from anywhere in then network. You could even go as far as giving some pods public IP address and have them accessible from the Internet if you wanted to.
-
-#### Exit worker1
-
-We're done with adding the peers. Exit from `worker1` to return back to bastion node.
-
-```
-exit
-```
 
 _______________________________________________________________________________________________________________________________________________________________________
 
@@ -539,7 +532,7 @@ Calico supports annotations on both namespaces and pods that can be used to cont
 
 Let's create a namespace with the required Calico IPAM annotations. Examine the namespace configurations below. Note how Calico IPAM annotation `cni.projectcalico.org/ipv4pools` is used with the name of IPPool `external-pool` to allocate IP addresses from IPPool `external-pool` to pods deployed in this namespace.
 
-```
+```yaml
 kubectl apply -f -<<EOF
 apiVersion: v1
 kind: Namespace
@@ -553,7 +546,7 @@ EOF
 
 You should receive an output similar to the following.
 
-```
+```bash
 namespace/external-ns created
 ```
 
@@ -561,11 +554,11 @@ namespace/external-ns created
 
 Before deploying nginx to test the routing for pods deployed in `external-pool` IPPool from outside the cluster, let's examine the routing table of `bastion` node. You should receive an output similar to the following. At this point, `bastion` node should have no routing info for `external-pool` IPPool as there has not been any pods receiving their IP addresses from that IPPool.
 
-```
+```bash
 ip route
 ```
 
-```
+```bash
 default via 10.0.1.1 dev ens5 proto dhcp src 10.0.1.10 metric 100 
 10.0.1.0/24 dev ens5 proto kernel scope link src 10.0.1.10 
 10.0.1.1 dev ens5 proto dhcp scope link src 10.0.1.10 metric 100
@@ -576,7 +569,7 @@ default via 10.0.1.1 dev ens5 proto dhcp src 10.0.1.10 metric 100
 
 Deploy a nginx example pod in the `external-ns` namespace by running the following command.
 
-```
+```yaml
 kubectl apply -f -<<EOF
 apiVersion: apps/v1
 kind: Deployment
@@ -604,7 +597,7 @@ EOF
 
 You should receive an output similar to the following.
 
-```
+```bash
 deployment.apps/nginx created
 networkpolicy.networking.k8s.io/nginx created
 ```
@@ -613,11 +606,11 @@ networkpolicy.networking.k8s.io/nginx created
 
 Check `bastion` node's routing table again. You should have a new routing table entry.
 
-```
+```bash
 ip route
 ```
 
-```
+```bash
 default via 10.0.1.1 dev ens5 proto dhcp src 10.0.1.10 metric 100 
 10.0.1.0/24 dev ens5 proto kernel scope link src 10.0.1.10 
 10.0.1.1 dev ens5 proto dhcp scope link src 10.0.1.10 metric 100 
@@ -628,10 +621,10 @@ default via 10.0.1.1 dev ens5 proto dhcp src 10.0.1.10 metric 100
 
 Check the IP address that was assigned to our nginx pod.
 
-```
+```bash
 kubectl get pods -n external-ns -o wide
 ```
-```
+```bash
 NAME                     READY   STATUS    RESTARTS   AGE   IP            NODE                                      NOMINATED NODE   READINESS GATES
 nginx-5ff46477b5-tjrl5   1/1     Running   0          92s   10.48.2.216   ip-10-0-1-31.eu-west-1.compute.internal   <none>           <none>
 ```
@@ -641,14 +634,14 @@ The output above shows that the nginx pod has an IP address from the externally 
 
 Let's try connectivity to the nginx pod from the bastion node. Please make sure to replace the IP address of nginx pod from your lab in the following command.
 
-```
+```bash
 curl 10.48.2.216
 
 ```
 
 This should have succeeded showing that the nginx pod is directly routable on the broader network.
 
-```
+```bash
 <!DOCTYPE html>
 <html>
 <head>
@@ -678,14 +671,14 @@ Commercial support is available at
 
 If you would like to see IP allocation stats from Calico-IPAM, run the following command.
 
-```
+```bash
 calicoctl ipam show
 
 ```
 
 There is one IP address in use from the range `10.48.2.0/24`, which is for our nginx pod.
 
-```
+```bash
 +----------+----------------+-----------+------------+------------+
 | GROUPING |      CIDR      | IPS TOTAL | IPS IN USE |  IPS FREE  |
 +----------+----------------+-----------+------------+------------+

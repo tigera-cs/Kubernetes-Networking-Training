@@ -28,10 +28,10 @@ As discussed in the previous lab, upstream Kubernetes by default does not provid
 
 Each pod gets its own Linux network namespace, which you can think of as giving a pod an isolated copy of the Linux networking stack. Let's start by examining what the network looks like from the pod's point of view. Find the name and location of the customer pod using the following command.
 
-```
+```bash
 kubectl get pods -n yaobank -l app=customer -o wide
 ```
-```
+```bash
 NAME                        READY   STATUS    RESTARTS   AGE    IP           NODE                                      NOMINATED NODE   READINESS GATES
 customer-687b8d8f74-lmzqz   1/1     Running   0          129m   10.48.0.20   ip-10-0-1-31.eu-west-1.compute.internal   <none>           <none>
 ```
@@ -41,18 +41,18 @@ Note the node on which the pod is running on (`ip-10-0-1-31.eu-west-1.compute.in
 
 Use `kubectl` to exec into the pod so we can check the pod networking details. 
 
-```
-kubectl exec -ti -n yaobank $(kubectl get pods -n yaobank -l app=customer -o name) bash
+```bash
+kubectl exec -ti -n yaobank $(kubectl get pods -n yaobank -l app=customer -o name) -- bash
 ```
 
 #### List the pod's addresses and interfaces
 
 First we will use `ip addr` to list the addresses and associated network interfaces that the pod sees.
 
-```
+```bash
 ip addr
 ```
-```
+```bash
 1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 qdisc noqueue state UNKNOWN group default qlen 1000
     link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00
     inet 127.0.0.1/8 scope host lo
@@ -72,10 +72,10 @@ The key things to note in this output are:
 
 Next let's look more closely at the interfaces using `ip link`.  We will use the `-c` option, which colours the output to make it easier to read.
 
-```
+```bash
 ip -c link
 ```
-```
+```bash
 1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 qdisc noqueue state UNKNOWN mode DEFAULT group default qlen 1000
     link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00
 3: eth0@if28: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 9001 qdisc noqueue state UP mode DEFAULT group default 
@@ -92,10 +92,10 @@ Look at the `eth0` part of the output. The key things to note are:
 
 Finally, let's look at the routes the pod sees.
 
-```
+```bash
 ip route
 ```
-```
+```bash
 default via 169.254.1.1 dev eth0 
 169.254.1.1 dev eth0  scope link
 ```
@@ -103,7 +103,7 @@ This shows that the pod's default route is out over the `eth0` interface. i.e. A
 
 We've finished our tour of the pod's view of the network. Let's exit out of the exec mode to return to bastion host.
 
-```
+```bash
 exit
 ```
 
@@ -111,7 +111,7 @@ exit
 
 To examine the network from the node prespective, we will need to connect to the node where the customer pod is running. In our example earlier, this was `ip-10-0-1-31.eu-west-1.compute.internal`, which refers to worker2. SSH into worker2. (Please note that the your customer pod might run on a different node. SSH into the worker node where customer pod is running in your lab)
 
-```
+```bash
 ssh worker2
 ```
 
@@ -119,11 +119,11 @@ ssh worker2
 
 Now we're on the node hosting the customer pod. we'll examine the other end of the veth pair. In our example output earlier, the `@if28` indicated it should be interface number 28 in the host network namespace. (Your interface numbers may be different, but you should be able to follow along the same logic.)
 
-```
+```bash
 ip -c link
 ```
 
-```
+```bash
 1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 qdisc noqueue state UNKNOWN mode DEFAULT group default qlen 1000
     link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00
 2: ens5: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 9001 qdisc mq state UP mode DEFAULT group default qlen 1000
@@ -183,10 +183,10 @@ You can also see the host end of the veth pairs to other pods running on this no
 
 Let examine the node routing table. First let's remind ourselves of the `customer` pod's IP address.
 
-```
+```bash
 kubectl get pods -n yaobank -l app=customer -o wide
 ````
-```
+```bash
 NAME                        READY   STATUS    RESTARTS   AGE    IP           NODE                                      NOMINATED NODE   READINESS GATES
 customer-687b8d8f74-lmzqz   1/1     Running   0          148m   10.48.0.20   ip-10-0-1-31.eu-west-1.compute.internal   <none>           <none>
 ```
@@ -195,10 +195,10 @@ customer-687b8d8f74-lmzqz   1/1     Running   0          148m   10.48.0.20   ip-
 
 Now lets look at the routes on the node, where the customer pod is running. SSH into the node.
 
-```
+```bash
 ip route
 ```
-```
+```bash
 default via 10.0.1.1 dev ens5 proto dhcp src 10.0.1.31 metric 100 
 10.0.1.0/24 dev ens5 proto kernel scope link src 10.0.1.31 
 10.0.1.1 dev ens5 proto dhcp scope link src 10.0.1.31 metric 100 
@@ -229,6 +229,11 @@ blackhole 10.48.0.0/26 proto bird
 ```
 
 In this example output, we can see the route to the customer pod's IP `10.48.0.20` is via the `caliaa83cb3d2b3` interface, the host end of the veth pair for the customer pod. You can see similar routes for each of the IPs of the other pods hosted on this node. These routes tell Linux where to send the traffic when the traffic is destined to local pods on the node.
+To see the route for a specific IP, run the following command:
+
+```bash
+ip route get 10.48.0.20
+```
 
 #### Understand the BGP-learned routes
 
@@ -252,7 +257,7 @@ If Calico IPAM runs out of blocks to allocate to nodes, then it will use unused 
 
 Exit from the worker node's ssh and get back to bastion host terminal. 
 
-```
+```bash
 exit
 ```
 
@@ -269,11 +274,11 @@ These are configured at cluster creation time (e.g. as initial kubeadm configura
 
 You can find these values using the following command.
 
-```
+```bash
 kubectl cluster-info dump | grep -m 2 -E "service-cluster-ip-range|cluster-cidr"
 ```
 
-```
+```bash
 kubectl cluster-info dump | grep -m 2 -E "service-cluster-ip-range|cluster-cidr"
                             "--service-cluster-ip-range=10.49.0.0/16",
                             "--cluster-cidr=10.48.0.0/16",
@@ -289,11 +294,11 @@ In this section, we will:
 
 Let's start by listing the configured IPPool in this cluster and getting familiar with some of the configuration parameters in the IPPool.
 
-```
+```bash
 kubectl get ippools default-ipv4-ippool -o yaml
 ```
 
-```
+```yaml
 apiVersion: projectcalico.org/v3
 kind: IPPool
 metadata:
@@ -341,7 +346,7 @@ We have the following address ranges configured in this cluster.
 
 Let's create a new IPPool by applying the following manifest.
 
-```
+```yaml
 kubectl apply -f -<<EOF
 apiVersion: projectcalico.org/v3
 kind: IPPool
@@ -358,7 +363,7 @@ EOF
 ```
 You should receive an output similar to the following.
 
-```
+```bash
 ippool.projectcalico.org/pool2-ipv4-ippool created
 ```
 
@@ -366,15 +371,20 @@ ippool.projectcalico.org/pool2-ipv4-ippool created
 
 Check the IPPools that exist in the cluster.
 
-```
+```bash
 calicoctl get ippools
 ```
-```
+```bash
 NAME                  CIDR             SELECTOR   
 default-ipv4-ippool   10.48.0.0/24     all()      
 pool2-ipv4-ippool     10.48.128.0/24   all()
 ```
 
+**Note:** You can also use the following command to list IPPOOLs.
+
+```bash
+kubectl get ippools
+```
 
 #### Review the new yaobank IPPool annotations
 
@@ -384,19 +394,19 @@ There is a new version of the yaobank application that is configured for specifi
 
 Before deploying the new version of yaobank application, let's delete the old version to avoid any conflicts. 
 
-```
+```bash
 kubectl delete namespace yaobank
 ```
 You should receive an output similar to the following. This command might take about 1-2 minutes to complete. Please wait util the namespace and all of the resources assocaited within it are deleted.
 
-```
+```bash
 namespace "yaobank" deleted
 ```
 #### Deploy the new version of yaobank
 
 Now implement the new version of the app.
 
-```
+```yaml
 kubectl apply -f -<<EOF
 ---
 apiVersion: v1
@@ -576,7 +586,7 @@ EOF
 
 You should receive an output similar to the following.
 
-```
+```bash
 namespace/yaobank created
 service/database created
 serviceaccount/database created
@@ -593,11 +603,11 @@ deployment.apps/customer created
 
 Let's check on the Pods' ip address assignments.
 
-```
+```bash
 kubectl get pod -n yaobank -o wide
 ```
 
-```
+```bash
 NAME                        READY   STATUS    RESTARTS   AGE   IP              NODE                                      NOMINATED NODE   READINESS GATES
 customer-687b8d8f74-tcclp   1/1     Running   0          16s   10.48.0.43      ip-10-0-1-31.eu-west-1.compute.internal   <none>           <none>
 database-75ccfdc84f-hqr64   1/1     Running   0          16s   10.48.128.0     ip-10-0-1-31.eu-west-1.compute.internal   <none>           <none>
@@ -614,12 +624,12 @@ https://projectcalico.docs.tigera.io/networking/assign-ip-addresses-topology
 
 To check the IPAM allocations in the cluster, run the following command.
 
-```
+```bash
 calicoctl ipam show
 
 ```
 
-```
+```bash
 +----------+----------------+-----------+------------+-----------+
 | GROUPING |      CIDR      | IPS TOTAL | IPS IN USE | IPS FREE  |
 +----------+----------------+-----------+------------+-----------+
@@ -632,11 +642,11 @@ calicoctl ipam show
 
 Use `calicoctl` help to learn about subcommands available to `calicoctl ipam`. Please note that Tigera APIServer enables you to use Kubernetes native command line utility `kubectl` to manage most of the aspects of Calico Enterprise (CE) resources. However, there are some aspects of CE that can't be managed by `kubectl` and `calicoctl` needs to be used. Tere is no equivalent capability through `kubectl` to find the information that is provided below through `calicoctl ipam`.
 
-```
+```bash
 calicoctl ipam -h
 
 ```
-```
+```bash
 Set the Calico datastore access information in the environment variables or
 supply details in a config file.
 

@@ -33,16 +33,16 @@ To ssh into the lab instances, type the following commands. The associated IP ad
 
 ## Lab modules
 
-[1. Install Calico Enterprise](./1.%20Install%20Calico%20Enterprise)
+[1. Install Calico Enterprise](./1.Install-Calico-Enterprise/README.md)
 
-[2. Implement pod networking using Calico Enterprise CNI and IPAM](./2.%20Implement%20pod%20networking%20using%20Calico%20Enterprise%20CNI%20and%20IPAM)
+[2. Implement pod networking using Calico Enterprise CNI and IPAM](./2.Implement-pod-networking-using-Calico-Enterprise-CNI-and-IPAM/README.md)
 
-[3. Cross Node Connectivity](./3.%20Cross%20Node%20Connectivity)
+[3. Cross Node Connectivity](./3.Cross-Node-Connectivity/README.md)
 
-[4. Kubernetes Services and CE Service Advertisement](./4.%20Kubernetes%20Services%20and%20CE%20Service%20Advertisement)
+[4. Kubernetes Services and CE Service Advertisement](./4.Kubernetes-Services-and-CE-Service-Advertisement/README.md)
 
-[5. Calico Enterprise Egress Gateway](./5.%20Calico%20Enterprise%20Egress%20Gateway)
+[5. Calico Enterprise Egress Gateway](./5.Calico-Enterprise-Egress-Gateway/README.md)
 
-[6. Calico Ingress Gateway](./6.%20Calico%20Ingress%20Gateway)
+[6. Calico Ingress Gateway](./6.Calico-Ingress-Gateway/README.md)
 
-[7. Implement Calico Enterprise eBPF](./7.%20Implement%20Calico%20Enterprise%20eBPF)
+[7. Implement Calico Enterprise eBPF](./7.Implement-Calico-Enterprise-eBPF/README.md)
