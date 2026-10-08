@@ -482,7 +482,7 @@ yaobank is a sample application, which consists of 3 microservices explained bel
 
 The following diagram shows the logical diagram of the application.
 
-![yaobank](img/1-yaobank.jpg)
+<a href="img/yaobank.png"><img src="img/yaobank.png" alt="yaobank three-tier application" width="75%"></a>
 
 #### Deploy the yaobank application
 

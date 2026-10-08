@@ -1,0 +1,112 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="600" viewBox="0 0 1200 600" font-family="Poppins, 'Segoe UI', Helvetica, Arial, sans-serif">
+  <title>yaobank: a three-tier sample application</title>
+  <defs>
+    <style>@font-face{font-family:'Poppins';font-weight:400;src:url(data:font/woff;base64,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) format('woff');}@font-face{font-family:'Poppins';font-weight:700;src:url(data:font/woff;base64,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) format('woff');}</style>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#09287D"/>
+    </marker>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="130%">
+      <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#09287D" flood-opacity="0.18"/>
+    </filter>
+  </defs>
+
+  <!-- Background -->
+  <rect x="0" y="0" width="1200" height="600" rx="16" fill="#FFFFFF"/>
+  <rect x="0.5" y="0.5" width="1199" height="599" rx="16" fill="none" stroke="#D5DEE8"/>
+
+  <!-- Title -->
+  <text x="40" y="52" font-size="26" font-weight="700" fill="#1E4E79">yaobank: Yet Another Online Bank</text>
+  <text x="40" y="78" font-size="14" fill="#595959">A three-tier sample application in the yaobank namespace, used throughout the training</text>
+
+  <!-- User -->
+  <g filter="url(#shadow)">
+    <rect x="40" y="250" width="130" height="84" rx="12" fill="#FFFFFF" stroke="#9FB3C8" stroke-width="1.5"/>
+  </g>
+  <text x="105" y="284" text-anchor="middle" font-size="17" font-weight="700" fill="#1E4E79">You</text>
+  <text x="105" y="306" text-anchor="middle" font-size="12.5" fill="#595959">browser or curl</text>
+
+  <!-- Namespace -->
+  <rect x="230" y="105" width="930" height="390" rx="14" fill="#EEF5FB" stroke="#1084B7" stroke-width="2"/>
+  <text x="254" y="136" font-size="15" font-weight="700" fill="#09287D">namespace: yaobank</text>
+
+  <!-- Tier columns: customer 290-520, summary 600-830, database 910-1120 -->
+
+  <!-- Services (pills) -->
+  <g font-size="12.5" text-anchor="middle">
+    <rect x="290" y="160" width="230" height="44" rx="22" fill="#FFFFFF" stroke="#1084B7" stroke-width="1.5"/>
+    <text x="405" y="179" fill="#1E4E79" font-weight="700">Service customer</text>
+    <text x="405" y="196" fill="#595959">NodePort 30180 → :80</text>
+
+    <rect x="600" y="160" width="230" height="44" rx="22" fill="#FFFFFF" stroke="#1084B7" stroke-width="1.5"/>
+    <text x="715" y="179" fill="#1E4E79" font-weight="700">Service summary</text>
+    <text x="715" y="196" fill="#595959">ClusterIP :80</text>
+
+    <rect x="910" y="160" width="210" height="44" rx="22" fill="#FFFFFF" stroke="#1084B7" stroke-width="1.5"/>
+    <text x="1015" y="179" fill="#1E4E79" font-weight="700">Service database</text>
+    <text x="1015" y="196" fill="#595959">ClusterIP :2379</text>
+  </g>
+  <!-- service to pods -->
+  <g stroke="#9FB3C8" stroke-width="2" stroke-dasharray="4 4">
+    <line x1="405" y1="204" x2="405" y2="240"/>
+    <line x1="715" y1="204" x2="715" y2="232"/>
+    <line x1="1015" y1="204" x2="1015" y2="240"/>
+  </g>
+
+  <!-- customer pod -->
+  <g filter="url(#shadow)">
+    <rect x="290" y="240" width="230" height="104" rx="12" fill="#1084B7"/>
+  </g>
+  <text x="405" y="274" text-anchor="middle" font-size="20" font-weight="700" fill="#FFFFFF">customer</text>
+  <text x="405" y="298" text-anchor="middle" font-size="13.5" fill="#FFFFFF">1 pod</text>
+  <text x="405" y="324" text-anchor="middle" font-size="11.5" fill="#DDEFF7">calico/yaobank-customer</text>
+
+  <!-- summary pods (two, stacked) -->
+  <rect x="612" y="232" width="230" height="104" rx="12" fill="#3F6E9A"/>
+  <g filter="url(#shadow)">
+    <rect x="600" y="244" width="230" height="104" rx="12" fill="#1E4E79"/>
+  </g>
+  <text x="715" y="278" text-anchor="middle" font-size="20" font-weight="700" fill="#FFFFFF">summary</text>
+  <text x="715" y="302" text-anchor="middle" font-size="13.5" fill="#FFFFFF">2 pods</text>
+  <text x="715" y="328" text-anchor="middle" font-size="11.5" fill="#D3E0EE">calico/yaobank-summary</text>
+
+  <!-- database pod -->
+  <g filter="url(#shadow)">
+    <rect x="910" y="240" width="210" height="104" rx="12" fill="#09287D"/>
+  </g>
+  <text x="1015" y="274" text-anchor="middle" font-size="20" font-weight="700" fill="#FFFFFF">database</text>
+  <text x="1015" y="298" text-anchor="middle" font-size="13.5" fill="#FFFFFF">1 pod · etcd</text>
+  <text x="1015" y="324" text-anchor="middle" font-size="11.5" fill="#C9D6F2">calico/yaobank-database</text>
+
+  <!-- request path -->
+  <path d="M170,292 L284,292" fill="none" stroke="#09287D" stroke-width="2.5" marker-end="url(#arrow)"/>
+  <text x="200" y="282" text-anchor="middle" font-size="12" font-weight="700" fill="#09287D">:30180</text>
+  <path d="M520,296 L594,296" fill="none" stroke="#09287D" stroke-width="2.5" marker-end="url(#arrow)"/>
+  <text x="557" y="286" text-anchor="middle" font-size="12.5" font-weight="700" fill="#09287D">HTTP</text>
+  <path d="M842,296 L904,296" fill="none" stroke="#09287D" stroke-width="2.5" marker-end="url(#arrow)"/>
+  <text x="876" y="286" text-anchor="middle" font-size="12.5" font-weight="700" fill="#09287D">etcd</text>
+
+  <!-- tier captions -->
+  <g text-anchor="middle">
+    <text x="405" y="392" font-size="15" font-weight="700" fill="#1E4E79">Web front end</text>
+    <text x="405" y="414" font-size="12.5" fill="#595959">serves the bank's web GUI</text>
+    <text x="715" y="392" font-size="15" font-weight="700" fill="#1E4E79">Business logic</text>
+    <text x="715" y="414" font-size="12.5" fill="#595959">middleware, load-balanced over two pods</text>
+    <text x="1015" y="392" font-size="15" font-weight="700" fill="#1E4E79">Data store</text>
+    <text x="1015" y="414" font-size="12.5" fill="#595959">persistent bank data</text>
+  </g>
+
+  <!-- request flow note inside namespace -->
+  <rect x="290" y="440" width="830" height="34" rx="17" fill="#FFFFFF" stroke="#BFD3E6"/>
+  <text x="705" y="462" text-anchor="middle" font-size="13" fill="#1E4E79">Each tier calls the next one by its Service name: customer → <tspan font-weight="700">summary:80</tspan> → <tspan font-weight="700">database:2379</tspan></text>
+
+  <!-- Legend -->
+  <g font-size="13" fill="#595959">
+    <rect x="40" y="525" width="1120" height="46" rx="10" fill="#F6F8FB" stroke="#E1E7EE"/>
+    <rect x="64" y="538" width="40" height="20" rx="10" fill="#FFFFFF" stroke="#1084B7" stroke-width="1.5"/>
+    <text x="114" y="553">Kubernetes Service: a stable virtual IP and DNS name in front of the pods</text>
+    <rect x="640" y="538" width="30" height="20" rx="5" fill="#1E4E79"/>
+    <text x="680" y="553">Pods of a Deployment</text>
+    <path d="M880,548 L930,548" stroke="#09287D" stroke-width="2.5" marker-end="url(#arrow)"/>
+    <text x="940" y="553">Request path</text>
+  </g>
+</svg>
