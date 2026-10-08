@@ -7,7 +7,6 @@ This lab provides the instructions to:
 * [Troubleshoot Calico Enterprise eBPF](#troubleshoot-calico-enterprise-ebpf)
 * [ Revert back to iptables dataplane](#revert-back-to-iptables-dataplane)
 
-
 ### Overview
 
 Calico Enterprise has got a pluggable dataplane, which enables Calico Enterprise to easily implement and adopt various dataplanes. Currently Calico Enterprise  supports four different dataplanes. Standard Linux iptables dataplane, eBPF dataplane, Windows dataplane, and VPP dataplane. eBPF is an alternative dataplane for iptables in Linux. Instead of using Linux standard dataplane, which uses iptables and conntrack, the dataplane uses a set of bpf programs.
@@ -59,7 +58,6 @@ First, make a note of the address of the APIServer. Run the following command to
 
 ```bash
 kubectl get endpoints kubernetes -o wide
-
 ```
 
 You should receive a similar output with a single IP address and port number.
@@ -68,7 +66,7 @@ You should receive a similar output with a single IP address and port number.
 NAME         ENDPOINTS        AGE
 kubernetes   10.0.1.20:6443   6d1h
 ```
- 
+
 #### Create the kubernetes-services-endpoint ConfigMap
 
 Then, create the following config map in the tigera-operator namespace using the host and port number determined above.
@@ -84,19 +82,17 @@ data:
   KUBERNETES_SERVICE_HOST: "10.0.1.20"
   KUBERNETES_SERVICE_PORT: "6443"
 EOF
-
 ```
 
 #### Verify the calico-system pods restart
 
 It can take up to 60s for kubelet to pick up the ConfigMap. tigera operator will then do a rolling update of the relevant pods in the calico-system namespace to pass on the change. calico-node, calico-typha, and calico-kubecontroller pods should be restarted. Run the following command to validate that these pods are restarted. Make sure all the pods are back into fully Running state after the restart.
- 
+
 ```bash
 watch kubectl get pods -n calico-system
-
 ```
 
-**Note:** If you do not see the pods restart then it’s possible that the ConfigMap was not picked up (sometimes Kubernetes is slow to propagate ConfigMap ). Try restarting the tigera-operator.
+> **Note:** If you do not see the pods restart then it’s possible that the ConfigMap was not picked up (sometimes Kubernetes is slow to propagate ConfigMap ). Try restarting the tigera-operator.
 
 #### Disable kube-proxy
 
@@ -104,16 +100,14 @@ In eBPF mode Calico Enterprise replaces kube-proxy and there is no need to run k
 
 ```bash
 kubectl patch ds -n kube-system kube-proxy -p '{"spec":{"template":{"spec":{"nodeSelector":{"non-calico": "true"}}}}}'
-
 ``` 
- 
+
 #### Enable eBPF mode in the Installation resource
 
 To enable eBPF mode, change the spec.calicoNetwork.linuxDataplane parameter in the operator’s Installation resource to "BPF". You also need to remove the hostPorts setting because hostPorts are not supported in BPF mode.
 
 ```bash
 kubectl patch installation.operator.tigera.io default --type merge -p '{"spec":{"calicoNetwork":{"linuxDataplane":"BPF", "hostPorts":null}}}'
-
 ```` 
 
 #### Enable Direct Server Return (DSR) mode
@@ -124,7 +118,6 @@ https://docs.tigera.io/maintenance/ebpf/enabling-ebpf#try-out-dsr-mode
 
 ```bash
 kubectl patch felixconfigurations default --patch='{"spec": {"bpfExternalServiceMode": "DSR"}}'
-
 ```
 
 #### Switch DSR back to tunneled mode
@@ -133,16 +126,14 @@ To switch back from DSR to tunneled mode, set the configuration parameter to "Tu
 
 ```bash
 kubectl patch felixconfigurations default --patch='{"spec": {"bpfExternalServiceMode": "Tunnel"}}'
-
 ```
-    
+
 #### Verify eBPF is enabled in the calico-node logs
 
-Check calico-node pods logs to verify eBPF is enabled. 
+Check calico-node pods logs to verify eBPF is enabled.
 
 ```bash
 for i in $(kubectl get pods -n calico-system -o name | grep calico-node) ; do kubectl logs $i -n calico-system | grep -w "BPF enabled" ; done
-
 ```
 
 You should see an output similar to the following.
@@ -161,6 +152,7 @@ You should see an output similar to the following.
 2023-01-08 05:29:18.364 [INFO][56524] felix/int_dataplane.go 973: BPF enabled, starting BPF endpoint manager and map manager.
 2023-01-08 05:29:18.532 [INFO][56524] felix/int_dataplane.go 2544: BPF enabled, disabling unprivileged BPF usage.
 ```
+
 -----
 
 #### Validate eBPF is enforced on the interfaces
@@ -173,14 +165,14 @@ ssh into `control1` node.
 
 ```bash
 ssh control1
-
 ```
+
 Run the following command.
 
 ```bash
 tc -s qdisc show | grep clsact -A 2
-
 ```
+
 You should see an output similar to the following.
 
 ```bash
@@ -228,8 +220,8 @@ Run the following command to do the validation from calico-node running on `cont
 ```bash
 CALICO_NODE=$(kubectl get pods -n calico-system -l k8s-app=calico-node -o wide | grep 10.0.1.20 | awk {'print $1'}) && echo $CALICO_NODE
 kubectl exec -ti $CALICO_NODE -n calico-system -- tc -s qdisc show | grep clsact -A 2
-
 ```
+
 You should see an output similar to the following.
 
 ```bash
@@ -277,13 +269,12 @@ Calico Enterprise provides bpftool to interact with Calico Enterpris eBPF and co
 
 ```bash
 CALICO_NODE=$(kubectl get pods -n calico-system -l k8s-app=calico-node -o wide | grep 10.0.1.20 | awk {'print $1'}) && echo $CALICO_NODE
-
 ```
 
 ```bash
 kubectl exec -ti $CALICO_NODE -n calico-system -- calico-node -bpf help
-
 ```
+
 You should see an output similar to the following.
 
 ```bash
@@ -317,7 +308,6 @@ Flags:
 Use "calico-bpf [command] --help" for more information about a command.
 ```
 
-
 #### Show the Linux routing table on control1
 
 Calico Enterprise eBPF routes packets before reaching Linux routing tables. However, Calico Enterprise eBPF always uses Linux routing table to route the first packet and take advantage of Linux kernel security features, RPF, etc. Calico Enterprise eBPF records this information as a conntrack entry in the conntrack map and skip all the processing for the subsequent flows.
@@ -326,11 +316,10 @@ SSH into `control1` and show the routing table.
 
 ```bash
 ssh control1
-
 ```
+
 ```bash
 ip route show
-
 ```
 
 You should see an output similar to the following.
@@ -357,15 +346,14 @@ Exit the ssh session.
 
 ```bash
 exit
-
 ```
+
 #### Dump the eBPF routing table
 
 Now, let's check the eBPF routing table on calico-node running on `control1`.
 
 ```bash
 kubectl exec -ti $CALICO_NODE -n calico-system -- calico-node -bpf routes dump
-
 ```
 
 You should see an output similar to the following.
@@ -395,8 +383,7 @@ Note the following about the above output.
 * `10.0.1.20/32: local host` = ip is the local node ip
 * `10.0.1.30/32: remote host` = ip is a remote node ip
 * `10.48.162.128/26: remote workload in-pool nat-out nh 10.0.1.31` = remote pod network on node -> 10.0.1.31
-* `10.255.241.69/32: local workload in-pool nat-out idx 77` = local pod 
-
+* `10.255.241.69/32: local workload in-pool nat-out idx 77` = local pod
 
 #### List the summary service and its endpoints
 
@@ -406,7 +393,6 @@ Run the following commands to list yaobank `summary` service and endpoints. This
 
 ```bash
 kubectl get svc -n yaobank summary
-
 ```
 
 ```bash
@@ -416,8 +402,8 @@ summary   ClusterIP   10.49.18.111   <none>        80/TCP    6m4s
 
 ```bash
 kubectl get endpoints -n yaobank summary
-
 ```
+
 ```bash
 NAME      ENDPOINTS                       AGE
 summary   10.48.0.210:80,10.48.0.212:80   9m58s
@@ -429,10 +415,9 @@ Run the following command to list the `summary` service implemented through eBPF
 
 ```bash
 kubectl exec -ti $CALICO_NODE -n calico-system -- calico-node -bpf nat dump | grep -A2 10.49.18.111
-
 ```
 
-You should see an output similar to the following. 
+You should see an output similar to the following.
 
 ```bash
 Defaulted container "calico-node" out of: calico-node, flexvol-driver (init), mount-bpffs (init), install-cni (init)
@@ -447,19 +432,19 @@ Find below the explanation of each field in the previous output.
     [id:countid] [pod ip:port]
 
 > [service ip] - kubernetes clusterIP/externalIp/nodeIP
-> 
+>
 > [service port] -  kubernetes - Service port
-> 
-> [protocol number] - Protocol number used 
-> 
+>
+> [protocol number] - Protocol number used
+>
 > [id] - identification number (unique)
-> 
+>
 > [count] - number of pods on this service
-> 
+>
 > [local] - how many pods are local on current node
-> 
+>
 > [id:countid] - “identification number”:”each pod ip have assigned id”
-> 
+>
 > [pod ip:port]
 
 #### Create a NetworkPolicy for the customer pod
@@ -499,15 +484,14 @@ spec:
   types:
     - Ingress
 EOF
-
 ```
+
 #### Find the pod IP address and its node
 
 Find the pod IP address and the host it is running on. In the following case, the pod is running on worker2. We will need to ssh into the worker nodes where the pod is running and find the pod interface name to find the policies implemented for the pod interface.
 
 ```bash
 kubectl get pods -n yaobank -l app=customer -o wide
-
 ```
 
 ```bash
@@ -516,7 +500,6 @@ NAME                        READY   STATUS    RESTARTS   AGE   IP            NOD
 customer-74fc55b74b-cfx6x   1/1     Running   0          24m   10.48.0.211   ip-10-0-1-31.ca-central-1.compute.internal   <none>           <none>
 ```
 
-
 #### Find the pod interface name on the worker node
 
 ssh into the worker node where the pod is running on. In this case, we ssh into worker2. Once ssh into the node, run the following command and make sure to use the IP address of the pod in your lab environment.
@@ -524,6 +507,7 @@ ssh into the worker node where the pod is running on. In this case, we ssh into 
 ```bash
 ssh worker2
 ```
+
 ```bash
 ip route get <IP Address>
 ```
@@ -539,13 +523,13 @@ ubuntu@ip-10-0-1-31:~$ ip route get  10.48.0.211
 #### Dump the policy attached to the pod interface
 
 Now run the following command. For the name of calico-node pod, make sure to use the calico-node pod running on the node where the pod is running on. In this case, calico-node running on worker2.
-Note: The command is `kubectl exec ti calico-node -n calico-system - calico-node -bpf policy dump <interface> <hook>`. The interface is HEP/WEP interface name. `<hook> `can be one of <ingress><egress><xdp><all>
+> **Note:** The command is `kubectl exec ti calico-node -n calico-system - calico-node -bpf policy dump <interface> <hook>`. The interface is HEP/WEP interface name. `<hook> `can be one of <ingress><egress><xdp><all>
 
 ```bash
 kubectl exec -ti calico-node-r8986 -n calico-system -- calico-node -bpf policy dump cali6ed10d023d2 ingress
-
 ```
-You should see an output similar to the following. Get yourself familiar with the following output. Note how calico bpf till list the policy rules according to the order they were implemented in the policy above. 
+
+You should see an output similar to the following. Get yourself familiar with the following output. Note how calico bpf till list the policy rules according to the order they were implemented in the policy above.
 
 ```bash
 tigera@bastion:~$ kubectl exec -ti calico-node-r8986 -n calico-system -- calico-node -bpf policy dump cali6ed10d023d2 ingress
@@ -571,8 +555,8 @@ Record the `count` for each rule above send some curl request and see how the co
 
 ```bash
 curl -k https://yaobank.<lab name>.training.tigera.ca
-
 ```
+
 In this case,  4 curl requests were sent. Note that for allowed traffic, the rule shows the number of sessions, and multiple connections can be sent through the same session.
 
 ```bash
@@ -593,15 +577,14 @@ Policy Info:
 // count = 6
 ```
 
-
 #### List the ipsets in use on the node
 
 `ipsets` are key in implementing security policies. To list the `ipsets` in use on a node, run the following command.
 
 ```bash
 kubectl exec -ti calico-node-r8986 -n calico-system -- calico-node -bpf ipsets dump
-
 ```
+
 You should see an output similar to the following. However, the list can be different depending on the available ipsets on the node.
 
 ```bash
@@ -653,8 +636,8 @@ To list the conntrack map, run the following command.
 
 ```bash
 kubectl exec -ti $CALICO_NODE -n calico-system -- calico-node -bpf conntrack dump
-
 ```
+
 You should see an output similar to the following. The following output is truncated.
 
 ```bash
@@ -677,7 +660,6 @@ Set Felix `bpfLogLevel` to `Debug`. Note that enabling debug logging causes a fi
 
 ```bash
 kubectl patch felixconfiguration default --patch='{"spec": {"bpfLogLevel": "Debug"}}'
-
 ```
 
 #### Connect to a node
@@ -686,7 +668,6 @@ To view the logs, we need to first connect to a node. SSH into `worker1`.
 
 ```bash
 ssh worker1
-
 ```
 
 #### View the BPF trace logs
@@ -695,26 +676,26 @@ Run the following command to view the logs. Press `ctrl+c` once done. Note that 
 
 ```bash
 sudo tc exec bpf debug
-
 ```
+
 You should see firehose of output similar to the following.
 
-`<...>-84582 [000] .Ns1  6851.690474: 0: ens192---E: Final result=ALLOW (-1). Program execution time: 7366ns`                                                     
+`<...>-84582 [000] .Ns1  6851.690474: 0: ens192---E: Final result=ALLOW (-1). Program execution time: 7366ns`
 
 Following is a short description of the output above.
 
 > [84582] - PID that triggered NAPI poll (often useful)
-> 
+>
 > [000] - CPU number
-> 
+>
 >[6851.690474] - Timestamp
 >
->[0:] - Calico program ID then 
+>[0:] - Calico program ID then
 >[ens192] - Interface caliXXX, ethXX
 >[---E:] - E=egress, I=ingress, C=connect-time
-> 
+>
 >[Final result=ALLOW (-1). Program execution time: 7366ns] - Message
-> 
+>
 
 _______________________________________________________________________________________________________________________________________________________________________
 
@@ -728,15 +709,14 @@ Revert the changes to the operator’s Installation resource.
 
 ```bash
 kubectl patch installation.operator.tigera.io default --type merge -p '{"spec":{"calicoNetwork":{"linuxDataplane":"Iptables"}}}'
-
 ```
+
 #### Verify the calico-node pods restart
 
 calico-node pods should get restarted. Run the following command to validate the calico-node restart.
- 
+
 ```bash
 watch kubectl get pods -n calico-system
-
 ```
 
 #### Re-enable kube-proxy
@@ -745,15 +725,14 @@ If you disabled kube-proxy, re-enable it.
 
 ```bash
 kubectl patch ds -n kube-system kube-proxy --type merge -p '{"spec":{"template":{"spec":{"nodeSelector":{"non-calico": null}}}}}'
-
 ```
+
 #### Verify kube-proxy pods are Running
 
 Make sure kube-proxy pods are in Running state.
 
 ```bash
 kubectl get pods -n kube-system -l k8s-app=kube-proxy
-
 ```
 
 ```bash
@@ -765,15 +744,14 @@ kube-proxy-gzvsb   1/1     Running   0          41s
 
 ```bash
 tc -s qdisc show | grep clsact -A 2
-
 ```
+
 #### Restart pods to recover long-lived connections
 
 Switching from `eBPF` to `iptables` dataplane is distruptive. Long-lived connections can't be recovered unless the application pods are reconnected on their own, preventing a restart. Otherwise, these pods need to be restart to recover long living connections. Use the following command to restart all the pods.
 
 ```bash
  kubectl delete pods -A --all --force --grace-period=0
-
 ```
 
 > **Congratulations! You have completed `7. Implement Calico Enterprise eBPF` lab.**

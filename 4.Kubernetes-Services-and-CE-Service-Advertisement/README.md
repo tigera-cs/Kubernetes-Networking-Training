@@ -9,11 +9,9 @@ This lab provides the instructions to:
 * [Advertise services with `externalTrafficPolicy: Local`to preserve the source IP and avoid extra hop in routing](#advertise-services-with-externaltrafficpolicy-local-to-preserve-the-source-ip-and-avoid-extra-hop-in-routing)
 * [Clean up](#clean-up)
 
-
-
 ### Overview
 
-Kubernetes is a dynamic environment and pods are not permanent resources. Pods are created and destroyed to match the desired state of your cluster. Since Pods and their IP addresses are ephemeral resources, Kubernetes provides a virtual entity called service as a permanent point of network communication between Pods. Once a service is created, it will stay there until deleted. Services provide a dns name and virtual IP address. In the context of Kubernetes service, pods are called endpoints. Kubernetes uses service controller, which it turn uses labels and selectors to keep the service endpoints updated as pods are created and destroyed. 
+Kubernetes is a dynamic environment and pods are not permanent resources. Pods are created and destroyed to match the desired state of your cluster. Since Pods and their IP addresses are ephemeral resources, Kubernetes provides a virtual entity called service as a permanent point of network communication between Pods. Once a service is created, it will stay there until deleted. Services provide a dns name and virtual IP address. In the context of Kubernetes service, pods are called endpoints. Kubernetes uses service controller, which it turn uses labels and selectors to keep the service endpoints updated as pods are created and destroyed.
 
 By default, Kubernetes service cluster IPs are accessible only within the cluster and external access to the service requires a dedicated load balancer or ingress controller. Calico Enterprise enables you to advertise Kubernetes service IPs outside the cluster. Calico Enterprise supports advertising a service’s cluster IPs and external IPs. In cases where a service’s cluster IP is not routable, the service can be accessed using its external IP.
 
@@ -40,6 +38,7 @@ Let's take a look at the services and pods in the `yaobank` kubernetes namespace
 ```bash
 kubectl get svc -n yaobank
 ```
+
 ```bash
 NAME       TYPE        CLUSTER-IP     EXTERNAL-IP   PORT(S)        AGE
 customer   NodePort    10.49.60.52    <none>        80:30180/TCP   2d2h
@@ -54,6 +53,7 @@ Run the following command to find the endpoints for each one of the services in 
 ```bash
 kubectl get endpoints -n yaobank
 ```
+
 ```bash
 NAME       ENDPOINTS                         AGE
 customer   10.48.0.43:80                     2d2h
@@ -78,7 +78,6 @@ summary-7d78c9976b-wjdd5    1/1     Running   0          2d2h   10.48.128.1     
 ```
 
 You can see that the IP addresses listed as the service endpoints in the previous step map to the backing pods in the yaobank namespace as expected. Each service is backed by one or more pods spread across the nodes in the cluster.
-
 
 #### Find the summary service endpoints
 
@@ -150,7 +149,9 @@ Now let's look more closely at the rules for the `summary` service.
 ```bash
 sudo iptables -v --numeric --table nat --list KUBE-SERVICES | column -t | grep -E summary 
 ```
+
 You should see an output similar to the following.
+
 ```bash
 0  0  KUBE-SVC-OIQIZJVJK6E34BR4  tcp  --  *  *  0.0.0.0/0  10.49.80.32  /*  yaobank/summary:http  cluster  IP  */  tcp  dpt:80
 ```
@@ -182,11 +183,10 @@ The third rule unconditionally directs to the second service endpoint chain (KUB
 
 If there were 3 service endpoints, then the first chain match would be probability of 0.33333333, the second probability of 0.5, and the last unconditional. The result is each service endpoint receives a third of the traffic (on average).
 
-
-
 #### Inspect a service endpoint chain
 
 Let's look at one of the service endpoint chains. (Remember your chain names may be different than this example.)
+
 ```bash
 sudo iptables -v --numeric --table nat --list KUBE-SEP-NCOI6JAXVX2D4BXJ | column -t
 ```
@@ -209,9 +209,7 @@ In summary, for a packet being sent to a clusterIP:
 * The KUBE-SVC-XXXXXXXXXXXXXXXX chain load balances the packet to a random service endpoint KUBE-SEP-XXXXXXXXXXXXXXXX chain.
 * The KUBE-SEP-XXXXXXXXXXXXXXXX chain DNATs the packet so it will get routed to the service endpoint (backing pod).
 
-
 _______________________________________________________________________________________________________________________________________________________________________
-
 
 ### Explore Kubernetes service NodePort iptables rules
 
@@ -234,7 +232,7 @@ customer   10.48.0.43:80   2d2h
 
 The `customer` service has one endpoint (`10.48.0.43` on port `80` in this example output). Starting from the `KUBE-SERVICES` iptables chain, we will traverse each chain until you get to the rule directing traffic to this endpoint IP address.
 
-**Note:** The `KUBE-SERVICE` chain handles the matching for service types `ClusterIP` and `LoadBalancer`. At the end of `KUBE-SERVICE` chain, another custom chain `KUBE-NODEPORTS` will handle traffic for service type `NodePort`.
+> **Note:** The `KUBE-SERVICE` chain handles the matching for service types `ClusterIP` and `LoadBalancer`. At the end of `KUBE-SERVICE` chain, another custom chain `KUBE-NODEPORTS` will handle traffic for service type `NodePort`.
 
 ```bash
 sudo iptables -v --numeric --table nat --list KUBE-SERVICES | grep KUBE-NODEPORTS | column -t
@@ -299,14 +297,11 @@ pkts   bytes                      target          prot         opt  in  out  sou
 
 The second rule performs the DNAT that changes the destination IP from the service's NodePort to the IP address of the service endpoint backing pod (`10.48.0.43` in this example). After this, standard Linux routing can handle forwarding the packet like it would for any other packet.
 
-
-#### Exit the worker node.
+#### Exit the worker node
 
 ```bash
 exit
 ```
-
-
 
 **Recap**
 
@@ -319,9 +314,7 @@ In summary, for a packet being sent to a NodePort:
 * The KUBE-SVC-XXXXXXXXXXXXXXXX chain load balances the packet to a random service endpoint KUBE-SEP-XXXXXXXXXXXXXXXX chain.
 * The KUBE-SEP-XXXXXXXXXXXXXXXX chain DNATs the packet so it will get routed to the service endpoint (backing pod).
 
-
 _______________________________________________________________________________________________________________________________________________________________________
-
 
 ### Advertise the ServiceIP range using Calico Enterprise
 
@@ -346,12 +339,14 @@ default via 10.0.1.1 dev ens5 proto dhcp src 10.0.1.10 metric 100
 
 Run the following command and ensure that there is no bgpconfigurations in your cluster.
 
-**Note:** A BGPConfiguration resource (BGPConfiguration) represents BGP specific configuration options for the cluster or a specific node. The resource with the name `default` has a specific meaning and contains the BGP global default configuration. By default, there is no BGPConfiguration resource deployed in the cluster. However, Once BGP is activated, Calico has default built-in configurations for BGP in its data model. For example, it use 64512 as the default AS number.
+> **Note:** A BGPConfiguration resource (BGPConfiguration) represents BGP specific configuration options for the cluster or a specific node. The resource with the name `default` has a specific meaning and contains the BGP global default configuration. By default, there is no BGPConfiguration resource deployed in the cluster. However, Once BGP is activated, Calico has default built-in configurations for BGP in its data model. For example, it use 64512 as the default AS number.
 
 ```bash
 kubectl get bgpconfigurations
 ```
+
 You should receive the following output.
+
 ```bash
 NAME      CREATED AT
 default   2026-10-05T18:27:40Z
@@ -364,6 +359,7 @@ Examine the following default BGP configuration and then apply it.
 ```bash
 kubectl patch bgpconfigurations default --type=merge -p '{"spec":{"serviceClusterIPs":[{"cidr":"10.49.0.0/16"}]}}'
 ```
+
 The `serviceClusterIPs` parameter tells Calico to advertise the cluster IP range.
 
 #### Verify the BGPConfiguration
@@ -411,14 +407,12 @@ default via 10.0.1.1 dev ens5 proto dhcp src 10.0.1.10 metric 100
 
 You should now see the cluster service cidr `10.49.0.0/16` advertised from each of the kubernetes cluster nodes. This means that traffic to any service's cluster IP address will get load-balanced across all nodes in the cluster by the network using ECMP (Equal Cost Multi Path). Kube-proxy then load balances the cluster IP across the service endpoints (backing pods) in exactly the same way as if a pod had accessed a service via a clusterIP from within the cluster.
 
-
 #### Find the customer service cluster IP
 
 Let's verify connectivity through the clusterIP. Find the cluster IP for the `customer` service.
 
 ```bash
 kubectl get svc -n yaobank customer
-
 ```
 
 ```bash
@@ -434,7 +428,6 @@ Confirm you can access it from the `bastion` host.
 
 ```bash
 curl 10.49.60.52
-
 ```
 
 ```bash
@@ -465,20 +458,16 @@ curl 10.49.60.52
 </html>
 ```
 
-
-
 ______________________________________________________________________________________________________________________________________________________________________
-
 
 ### Advertise services with `externalTrafficPolicy: Local` to preserve the source IP and avoid extra hop in routing
 
-You can set `externalTrafficPolicy: Local` on a Kubernetes service to request that external traffic to a service only be routed via nodes, which have a local service endpoint (backing pod). This preserves the client source IP and avoids the second hop when kube-proxy loadbalances to a service endpoint (backing pod) on another node. 
+You can set `externalTrafficPolicy: Local` on a Kubernetes service to request that external traffic to a service only be routed via nodes, which have a local service endpoint (backing pod). This preserves the client source IP and avoids the second hop when kube-proxy loadbalances to a service endpoint (backing pod) on another node.
 
 Traffic to the cluster IP for a service with `externalTrafficPolicy: Local` will be load-balanced across the nodes with endpoints for that service.
 Note that `externalTrafficPolicy: Local` is only supported with service types of LoadBalancer and NodePort. For more information, visit the following link.
 
 https://docs.tigera.io/networking/advertise-service-ips
-
 
 #### Set externalTrafficPolicy to Local on the customer service
 
@@ -518,7 +507,6 @@ You should now have a `/32` route for the yaobank customer service (`10.49.60.52
 
 ```bash
 kubectl get pods -n yaobank -l app=customer -o wide
-
 ```
 
 ```bash
@@ -532,7 +520,6 @@ The two main advantages of using `externalTrafficPolicy: Local` in this way are:
 * There is a network efficiency win avoiding potential second hop of kube-proxy load-balancing to another node
 * The client source IP addresses are preserved, which can be useful if you want to restrict access to a service to specific IP addresses using network policy applied to the backing pods
 
-
 #### Verify the NodePort fails on a node without a local endpoint
 
 In the previous labs, we accessed the yaobank frontend UI using curl from the `control1` node and we also mentioned that we can try any other cluster node IP address to hit the NodePort. As we've now set `externalTrafficPolicy: Local`, this will no longer work since there are no `customer` pods hosted on `control1`. Accessing the NodePort can only happen via the cluster node that is hosting the endpoint at this point.
@@ -541,16 +528,16 @@ The following should fail because of `externalTrafficPolicy: Local` configured o
 
 ```bash
 curl 10.0.1.20:30180
-
 ```
+
 #### Verify the NodePort succeeds on the node hosting the endpoint
 
-The following should go through. Please make sure to use the node IP address where customer pod is running. 
+The following should go through. Please make sure to use the node IP address where customer pod is running.
 
 ```bash
 curl 10.0.1.31:30180
-
 ```
+
 ```bash
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
   "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
@@ -579,7 +566,6 @@ curl 10.0.1.31:30180
 ```
 
 _____________________________________________________________________________________________________________________________________________________________________
-
 
 ### Clean up
 
@@ -615,6 +601,4 @@ The yaobank application is deployed again in a later lab. Delete its namespace f
 kubectl delete namespace yaobank
 ```
 
-
 > **Congratulations! You have completed `4. Kubernetes Services and CE Service Advertisement` lab.**
-

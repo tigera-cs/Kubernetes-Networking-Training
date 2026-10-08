@@ -12,12 +12,11 @@ This lab provides the instructions to:
 * [Pattern 4 — Canary 90/10](#pattern-4--canary-9010)
 * [Wrap up](#wrap-up)
 
-
 ### Overview
 
 You enable **Calico Ingress Gateway** and build **one shared Gateway**, `calico-ingress-shared`, then add four traffic patterns to it. Envoy runs in **host-network mode** on the two worker nodes; the AWS load balancer forwards port 443 to them, and `*.<LABNAME>.training.tigera.ca` resolves to that load balancer.
 
-```bash
+```text
 browser / curl ─► AWS LB :443 ─► worker :443 ─┬─ listener manager  TLS passthrough ─► TLSRoute  ─► Manager UI    (calico-system)
                                               └─ listener yaobank  HTTPS terminate ─► HTTPRoute ─► yaobank       (yaobank)
 bastion (curl)  ──────────────► worker :80  ─── listener http     HTTP            ─► HTTPRoute ─► 301 to https  (calico-ingress)
@@ -27,13 +26,29 @@ Every step ends with **Validate**. Compare your output with the expected output 
 
 All commands run on the **bastion**.
 
+#### The teams in this lab
+
+In real clusters, ingress is shared by different teams with different jobs. The platform team runs the front door; application teams decide how their own traffic is routed. Gateway API is built around this split, and in this lab you play all of the roles. The first word of each command shows who is acting:
+
+| Role | Command | Owns | What they do in this lab |
+|---|---|---|---|
+| **You**, cluster admin | `kubectl` | The cluster | Enable Calico Ingress Gateway, expose the Manager UI (Pattern 1), create the teams' namespaces and give the teams their permissions |
+| **Paul**, platform team | `paul` | The shared Gateway (`calico-ingress`) and the TLS certificates (`calico-ingress-certs`) | Add the yaobank listener, its certificate and ReferenceGrant (Pattern 2), and the HTTP to HTTPS redirect (Pattern 3) |
+| **Dana**, yaobank developer | `dana` | The yaobank application and its routes (`yaobank`) | Deploy yaobank and its HTTPRoute (Pattern 2), and run the canary release (Pattern 4) |
+
+Paul and Dana are not real accounts. `paul` and `dana` are shortcuts for `kubectl --as=paul --as-group=platform-team` and `kubectl --as=dana --as-group=yaobank-dev`: Kubernetes runs the command **as that person** and checks it against their RBAC permissions. A command outside their job fails with `Forbidden`, exactly as it would for a real teammate. Status checks (`gw_listeners`, `route_status`) and `curl` tests are run as yourself.
+
+Each step starts with a line showing whose turn it is, for example:
+
+> **Role: Dana (yaobank developer)**
+
 After finishing this lab, you should understand how to enable Calico Ingress Gateway and use the Gateway API to expose applications safely through one shared Gateway.
 
 ______________________________________________________________________________________________________________________________________________________________________
 
 ### Before you start
 
-Two one-time steps on the bastion.
+Three one-time steps on the bastion.
 
 #### 1. Set your lab name
 
@@ -47,7 +62,7 @@ echo "manager.${LABNAME}.training.tigera.ca"
 
 The last command should print your Manager UI hostname, for example `manager.mylab.training.tigera.ca`.
 
-> **Note:** If a command later fails with a hostname such as `manager..training.tigera.ca` (two dots), `LABNAME` is empty in your shell. Run `source ~/.bashrc` and try again. The same fix applies if `gw_listeners` or `route_status` reports `command not found`.
+> **Note:** If a command later fails with a hostname such as `manager..training.tigera.ca` (two dots), `LABNAME` is empty in your shell. Run `source ~/.bashrc` and try again. The same fix applies if `gw_listeners`, `route_status`, `paul` or `dana` reports `command not found`.
 
 #### 2. Add two status shortcuts
 
@@ -74,9 +89,25 @@ How to use them:
 
 `True` everywhere means the step worked. A `False` is followed by the reason in brackets, such as `(RefNotPermitted)` or `(NotAllowedByListeners)`: that is what the lab asks you to look for in the guardrail steps.
 
+#### 3. Add the Paul and Dana shortcuts
+
+Create the `paul` and `dana` commands described in [The teams in this lab](#the-teams-in-this-lab), and save them in `~/.bashrc`:
+
+```bash
+cat >> ~/.bashrc <<'EOF'
+alias paul='kubectl --as=paul --as-group=platform-team'
+alias dana='kubectl --as=dana --as-group=yaobank-dev'
+EOF
+source ~/.bashrc
+```
+
+Paul and Dana have no permissions yet. You give them their permissions at the start of Pattern 2.
+
 ______________________________________________________________________________________________________________________________________________________________________
 
 ### Enable Calico Ingress Gateway
+
+> **Role: You (cluster admin)**
 
 #### 1. Create the namespace
 
@@ -106,7 +137,7 @@ spec:
 EOF
 ```
 
-Validate (the CRDs exist; `DEGRADED=True` is expected until step 3):
+**Validate** (the CRDs exist; `DEGRADED=True` is expected until step 3):
 
 ```bash
 kubectl get crd envoyproxies.gateway.envoyproxy.io gatewayclasses.gateway.networking.k8s.io
@@ -155,7 +186,7 @@ EOF
 
 > **Note:** Host-network mode runs Envoy as a DaemonSet, and Calico Enterprise adds its WAF and L7 log collector only to Envoy running as a Deployment (pod-network mode). Traffic through this Gateway is not inspected by the WAF and produces no L7 logs.
 
-Validate (the operator finished; the GatewayClass is accepted):
+**Validate** (the operator finished; the GatewayClass is accepted):
 
 ```bash
 kubectl get tigerastatus gatewayapi
@@ -171,6 +202,8 @@ tigera-gateway-class   gateway.envoyproxy.io/gatewayclass-controller   True     
 ______________________________________________________________________________________________________________________________________________________________________
 
 ### Pattern 1 — TLS passthrough: Manager UI
+
+> **Role: You (cluster admin)**
 
 The Manager UI terminates its own TLS, so Envoy routes by **SNI only** and never decrypts.
 
@@ -205,7 +238,7 @@ spec:
 EOF
 ```
 
-Validate (Envoy pods on both workers, pod IP = node IP; listener programmed):
+**Validate** (Envoy pods on both workers, pod IP = node IP; listener programmed):
 
 ```bash
 kubectl -n calico-ingress get pods -o wide -l gateway.envoyproxy.io/owning-gateway-name=calico-ingress-shared
@@ -243,7 +276,7 @@ spec:
 EOF
 ```
 
-Validate:
+**Validate:**
 
 ```bash
 route_status calico-system tlsroute manager
@@ -303,19 +336,172 @@ ________________________________________________________________________________
 
 ### Pattern 2 — TLS termination: yaobank
 
-Envoy decrypts with the listener's certificate and routes plain HTTP to yaobank, on the **same port 443** as the Manager. The two listeners are told apart by hostname.
+Envoy decrypts with the listener's certificate and routes plain HTTP to yaobank, on the **same port 443** as the Manager. The two listeners are told apart by hostname. This is where Paul and Dana start working together.
 
-#### Deploy yaobank
+#### Give the two teams their permissions
 
-The same application as in earlier modules. `customer` is `ClusterIP`: the Gateway is the only way in.
+> **Role: You (cluster admin)**
+
+Create the two teams' namespaces and give each team permissions for its own job only:
+
+* **Paul** may manage Gateways and HTTPRoutes in `calico-ingress`, and Secrets and ReferenceGrants in `calico-ingress-certs`.
+* **Dana** may manage the application and its HTTPRoutes in `yaobank`, and may only **read** the Gateway in `calico-ingress`, to check that the route is attached.
+
+Gateway API resources are not part of Kubernetes' built-in `edit` and `admin` roles, so each team gets its own Role.
 
 ```yaml
 kubectl apply -f - <<EOF
+# Namespaces the two teams work in (only an admin can create namespaces)
 apiVersion: v1
 kind: Namespace
 metadata:
   name: yaobank
 ---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: calico-ingress-certs
+---
+# Paul (platform team): owns the shared Gateway and the platform's own routes
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: platform-gateway-admin
+  namespace: calico-ingress
+rules:
+- apiGroups: ["gateway.networking.k8s.io"]
+  resources: ["gateways", "httproutes"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: platform-team
+  namespace: calico-ingress
+subjects:
+- kind: Group
+  name: platform-team
+  apiGroup: rbac.authorization.k8s.io
+roleRef:
+  kind: Role
+  name: platform-gateway-admin
+  apiGroup: rbac.authorization.k8s.io
+---
+# Paul (platform team): owns the TLS certificates and decides who may use them
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: platform-certs-admin
+  namespace: calico-ingress-certs
+rules:
+- apiGroups: [""]
+  resources: ["secrets"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+- apiGroups: ["gateway.networking.k8s.io"]
+  resources: ["referencegrants"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: platform-team
+  namespace: calico-ingress-certs
+subjects:
+- kind: Group
+  name: platform-team
+  apiGroup: rbac.authorization.k8s.io
+roleRef:
+  kind: Role
+  name: platform-certs-admin
+  apiGroup: rbac.authorization.k8s.io
+---
+# Dana (yaobank developer): owns the yaobank application and its routes
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: yaobank-developer
+  namespace: yaobank
+rules:
+- apiGroups: [""]
+  resources: ["services", "serviceaccounts"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+- apiGroups: [""]
+  resources: ["pods", "endpoints"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["apps"]
+  resources: ["deployments", "replicasets"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+- apiGroups: ["gateway.networking.k8s.io"]
+  resources: ["httproutes"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: yaobank-dev
+  namespace: yaobank
+subjects:
+- kind: Group
+  name: yaobank-dev
+  apiGroup: rbac.authorization.k8s.io
+roleRef:
+  kind: Role
+  name: yaobank-developer
+  apiGroup: rbac.authorization.k8s.io
+---
+# Dana can read (not change) the shared Gateway, to check that her route is attached
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: gateway-viewer
+  namespace: calico-ingress
+rules:
+- apiGroups: ["gateway.networking.k8s.io"]
+  resources: ["gateways"]
+  verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: yaobank-dev
+  namespace: calico-ingress
+subjects:
+- kind: Group
+  name: yaobank-dev
+  apiGroup: rbac.authorization.k8s.io
+roleRef:
+  kind: Role
+  name: gateway-viewer
+  apiGroup: rbac.authorization.k8s.io
+EOF
+```
+
+**Validate.** Each team can do its own job, and nothing else:
+
+```bash
+paul auth can-i update gateways -n calico-ingress            # Paul changes the shared Gateway
+paul auth can-i create httproutes -n yaobank                 # Paul writes Dana's routes
+dana auth can-i create httproutes -n yaobank                 # Dana writes the yaobank routes
+dana auth can-i update gateways -n calico-ingress            # Dana changes the shared Gateway
+dana auth can-i get secrets -n calico-ingress-certs          # Dana reads the TLS certificate
+```
+
+```bash
+yes
+no
+yes
+no
+no
+```
+
+#### Deploy yaobank
+
+> **Role: Dana (yaobank developer)**
+
+Dana deploys the same application as in earlier modules, into the `yaobank` namespace you just created. `customer` is `ClusterIP`: the Gateway is the only way in.
+
+```yaml
+dana apply -f - <<EOF
 apiVersion: v1
 kind: Service
 metadata:
@@ -467,30 +653,33 @@ spec:
 EOF
 ```
 
-Validate (four pods `Running`):
+**Validate** (four pods `Running`):
 
 ```bash
-kubectl -n yaobank get pods,svc
+dana -n yaobank get pods,svc
 ```
 
 #### Create the wildcard certificate
 
-The platform team keeps certificates in their own namespace. One self-signed wildcard certificate covers every app hostname in the lab.
+> **Role: Paul (platform team)**
+
+Paul keeps the platform's certificates in their own namespace, `calico-ingress-certs`. One self-signed wildcard certificate covers every app hostname in the lab.
 
 ```bash
 openssl req -x509 -nodes -days 365 -newkey rsa:2048 -keyout tls.key -out tls.crt \
   -subj "/CN=*.${LABNAME}.training.tigera.ca" \
   -addext "subjectAltName=DNS:*.${LABNAME}.training.tigera.ca"
-kubectl create namespace calico-ingress-certs
-kubectl -n calico-ingress-certs create secret tls wildcard-tls --cert=tls.crt --key=tls.key
+paul -n calico-ingress-certs create secret tls wildcard-tls --cert=tls.crt --key=tls.key
 ```
 
 #### Add the yaobank listener
 
-The new listener `yaobank` uses HTTPS with `Terminate` and the certificate from `calico-ingress-certs`. It serves the yaobank hostname only and accepts routes only from the `yaobank` namespace.
+> **Role: Paul (platform team)**
+
+The new listener `yaobank` uses HTTPS with `Terminate` and the certificate from `calico-ingress-certs`. It serves the yaobank hostname only and accepts routes only from the `yaobank` namespace, so Dana can attach routes to it and nobody else can.
 
 ```yaml
-kubectl apply -f - <<EOF
+paul apply -f - <<EOF
 apiVersion: gateway.networking.k8s.io/v1
 kind: Gateway
 metadata:
@@ -531,7 +720,7 @@ spec:
 EOF
 ```
 
-Validate:
+**Validate:**
 
 ```bash
 gw_listeners
@@ -546,10 +735,12 @@ The certificate is in another namespace and its owner hasn't agreed to share it.
 
 #### Allow it with a ReferenceGrant
 
-The owner of `calico-ingress-certs` lets Gateways in `calico-ingress` use `wildcard-tls`, and nothing else. This is explicit trust.
+> **Role: Paul (platform team)**
+
+As the owner of `calico-ingress-certs`, Paul lets Gateways in `calico-ingress` use `wildcard-tls`, and nothing else. This is explicit trust.
 
 ```yaml
-kubectl apply -f - <<EOF
+paul apply -f - <<EOF
 apiVersion: gateway.networking.k8s.io/v1
 kind: ReferenceGrant
 metadata:
@@ -567,7 +758,7 @@ spec:
 EOF
 ```
 
-Validate (`yaobank: … Programmed=True  ResolvedRefs=True`):
+**Validate** (`yaobank: … Programmed=True  ResolvedRefs=True`):
 
 ```bash
 gw_listeners
@@ -575,10 +766,12 @@ gw_listeners
 
 #### Create the HTTPRoute
 
-The yaobank team attaches its route to the `yaobank` listener and sends the yaobank hostname to `customer:80`.
+> **Role: Dana (yaobank developer)**
+
+Paul's listener is ready. Dana now decides how yaobank traffic is routed: the route attaches to the `yaobank` listener and sends the yaobank hostname to `customer:80`. Dana does not need to touch the Gateway.
 
 ```yaml
-kubectl apply -f - <<EOF
+dana apply -f - <<EOF
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
@@ -598,7 +791,7 @@ spec:
 EOF
 ```
 
-Validate:
+**Validate:**
 
 ```bash
 route_status yaobank httproute yaobank
@@ -634,12 +827,16 @@ ________________________________________________________________________________
 
 ### Guardrail checks
 
-Try two things the listeners should block, read the status, then delete the test routes.
+Try four things the platform should block: two that Paul's listeners block, and two that the teams' RBAC blocks. Read the result of each, then delete the test routes.
 
-**Wrong hostname.** The route asks for `shop.…`, but the listener serves only `yaobank.…`, so there is no overlap.
+#### Wrong hostname
+
+> **Role: Dana (yaobank developer)**
+
+Dana's new route asks for `shop.…`, but the listener serves only `yaobank.…`, so there is no overlap.
 
 ```yaml
-kubectl apply -f - <<EOF
+dana apply -f - <<EOF
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
@@ -667,7 +864,11 @@ route_status yaobank httproute shop
 Accepted=False (NoMatchingListenerHostname)  ResolvedRefs=True (ResolvedRefs)
 ```
 
-**Untrusted namespace.** A route in `default` tries to attach to the yaobank listener and use the yaobank Service.
+#### Untrusted namespace
+
+> **Role: You, acting as another team** (neither Paul nor Dana can create anything in `default`)
+
+A route in `default` tries to attach to the yaobank listener and use the yaobank Service.
 
 ```yaml
 kubectl apply -f - <<EOF
@@ -699,8 +900,38 @@ Accepted=False (NotAllowedByListeners)  ResolvedRefs=False (RefNotPermitted)
 
 Both sides refused, independently: the listener doesn't trust `default`, and no ReferenceGrant in `yaobank` shares the Service.
 
+#### Dana changes the shared Gateway
+
+> **Role: Dana (yaobank developer)**
+
+Dana tries to delete the shared Gateway. `--dry-run=server` is a safety net: even if the permissions were wrong, nothing would be deleted. The permission check still runs.
+
 ```bash
-kubectl -n yaobank delete httproute shop
+dana -n calico-ingress delete gateway calico-ingress-shared --dry-run=server
+```
+
+```bash
+Error from server (Forbidden): gateways.gateway.networking.k8s.io "calico-ingress-shared" is forbidden: User "dana" cannot delete resource "gateways" in API group "gateway.networking.k8s.io" in the namespace "calico-ingress"
+```
+
+#### Dana reads the TLS certificate
+
+> **Role: Dana (yaobank developer)**
+
+```bash
+dana -n calico-ingress-certs get secret wildcard-tls
+```
+
+```bash
+Error from server (Forbidden): secrets "wildcard-tls" is forbidden: User "dana" cannot get resource "secrets" in API group "" in the namespace "calico-ingress-certs"
+```
+
+Dana uses the platform's certificate through the listener, but can never read its private key.
+
+Delete the two test routes:
+
+```bash
+dana -n yaobank delete httproute shop
 kubectl -n default delete httproute hijack
 ```
 
@@ -710,10 +941,12 @@ ________________________________________________________________________________
 
 #### Add the http listener
 
-The `http` listener on port 80 has no `allowedRoutes`, so the default `from: Same` applies. Only routes in `calico-ingress` can attach: **implicit trust**.
+> **Role: Paul (platform team)**
+
+Redirecting every application to HTTPS is a platform-wide decision, so Paul does it once for everyone. The `http` listener on port 80 has no `allowedRoutes`, so the default `from: Same` applies. Only routes in `calico-ingress` can attach: **implicit trust**.
 
 ```yaml
-kubectl apply -f - <<EOF
+paul apply -f - <<EOF
 apiVersion: gateway.networking.k8s.io/v1
 kind: Gateway
 metadata:
@@ -757,7 +990,7 @@ spec:
 EOF
 ```
 
-Validate (`http: attachedRoutes=0  Programmed=True …`):
+**Validate** (`http: attachedRoutes=0  Programmed=True …`):
 
 ```bash
 gw_listeners
@@ -765,10 +998,12 @@ gw_listeners
 
 #### Create the redirect route
 
+> **Role: Paul (platform team)**
+
 `sectionName: http` keeps HTTPS traffic from looping. The route has no `backendRefs`, because Envoy answers itself: 301 to `https://` on port 443.
 
 ```yaml
-kubectl apply -f - <<EOF
+paul apply -f - <<EOF
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
@@ -789,7 +1024,7 @@ spec:
 EOF
 ```
 
-Validate the route, and store the IP of a worker node running Envoy. The AWS load balancer forwards only port 443, so you test port 80 against a worker IP directly:
+**Validate** the route, and store the IP of a worker node running Envoy. The AWS load balancer forwards only port 443, so you test port 80 against a worker IP directly:
 
 ```bash
 route_status calico-ingress httproute https-redirect
@@ -815,7 +1050,9 @@ HTTP/1.1 301 Moved Permanently
 location: https://yaobank.<LABNAME>.training.tigera.ca/
 ```
 
-**Envoy answers this request itself.** The client did not ask for a redirect: it sent an ordinary request for `http://yaobank…` on port 80. The redirect is the platform team's choice: the gateway does not serve applications over plain, unencrypted HTTP, so instead of refusing the request it tells the client to come back over HTTPS on port 443. Here is how that works: the request matches the `https-redirect` route in `calico-ingress`. The route's only rule has a `RequestRedirect` filter and no `backendRefs`, so there is nothing to forward the request to. Envoy Gateway programs that rule in Envoy as a **redirect** instead of a forward to a backend. Envoy builds the `301` response on the spot and sends it straight back to the client, so yaobank never sees the request. The `location` header only tells the client where to go next: Envoy builds it from the request's own hostname and path, with the scheme changed to `https`. The route does not reference yaobank, its namespace or its Service.
+**Envoy answers this request itself.** The client did not ask for a redirect: it sent an ordinary request for `http://yaobank…` on port 80. The redirect is the platform team's choice: the gateway does not serve applications over plain, unencrypted HTTP, so instead of refusing the request it tells the client to come back over HTTPS on port 443.
+
+Here is how that works: the request matches the `https-redirect` route in `calico-ingress`. The route's only rule has a `RequestRedirect` filter and no `backendRefs`, so there is nothing to forward the request to. Envoy Gateway programs that rule in Envoy as a **redirect** instead of a forward to a backend. Envoy builds the `301` response on the spot and sends it straight back to the client, so yaobank never sees the request. The `location` header only tells the client where to go next: Envoy builds it from the request's own hostname and path, with the scheme changed to `https`. The route does not reference yaobank, its namespace or its Service.
 
 **Request 2: follow the redirect.** `-L` makes curl follow the `location` header:
 
@@ -836,12 +1073,16 @@ ________________________________________________________________________________
 
 ### Pattern 4 — Canary 90/10
 
+> **Role: Dana (yaobank developer)**
+
+Releasing a new version is the application team's job. Dana runs the whole canary release with the HTTPRoute alone, without asking Paul for any change.
+
 #### Deploy customer v2
 
 Same image, separate Deployment and Service.
 
 ```yaml
-kubectl apply -f - <<EOF
+dana apply -f - <<EOF
 apiVersion: v1
 kind: Service
 metadata:
@@ -883,10 +1124,10 @@ spec:
 EOF
 ```
 
-Validate (`customer-v2` pod `Running`):
+**Validate** (`customer-v2` pod `Running`):
 
 ```bash
-kubectl -n yaobank get pods -l app=customer-v2
+dana -n yaobank get pods -l app=customer-v2
 ```
 
 #### Split 90/10
@@ -894,7 +1135,7 @@ kubectl -n yaobank get pods -l app=customer-v2
 Two weighted `backendRefs`. Each one sets an `x-version` response header, so you can see which version answered.
 
 ```yaml
-kubectl apply -f - <<EOF
+dana apply -f - <<EOF
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
@@ -934,7 +1175,7 @@ Before you count, make sure both versions are ready to receive traffic. If you t
 
 ```bash
 # Wait until the customer-v2 pod is Ready (returns once the rollout is complete)
-kubectl -n yaobank rollout status deployment/customer-v2
+dana -n yaobank rollout status deployment/customer-v2
 
 # The route with the new weights must be accepted
 route_status yaobank httproute yaobank
@@ -966,7 +1207,7 @@ Change only the weights, and rerun the loop after each patch. Envoy applies the 
 
 ```bash
 # 50/50
-kubectl -n yaobank patch httproute yaobank --type=json -p='[{"op":"replace","path":"/spec/rules/0/backendRefs/0/weight","value":50},{"op":"replace","path":"/spec/rules/0/backendRefs/1/weight","value":50}]'
+dana -n yaobank patch httproute yaobank --type=json -p='[{"op":"replace","path":"/spec/rules/0/backendRefs/0/weight","value":50},{"op":"replace","path":"/spec/rules/0/backendRefs/1/weight","value":50}]'
 for i in $(seq 1 300); do
   curl -s --cacert tls.crt -o /dev/null -D - https://yaobank.${LABNAME}.training.tigera.ca/ | grep -i '^x-version' | tr -d '\r'
 done | sort | uniq -c
@@ -974,7 +1215,7 @@ done | sort | uniq -c
 
 ```bash
 # 0/100 (promote v2)
-kubectl -n yaobank patch httproute yaobank --type=json -p='[{"op":"replace","path":"/spec/rules/0/backendRefs/0/weight","value":0},{"op":"replace","path":"/spec/rules/0/backendRefs/1/weight","value":100}]'
+dana -n yaobank patch httproute yaobank --type=json -p='[{"op":"replace","path":"/spec/rules/0/backendRefs/0/weight","value":0},{"op":"replace","path":"/spec/rules/0/backendRefs/1/weight","value":100}]'
 for i in $(seq 1 300); do
   curl -s --cacert tls.crt -o /dev/null -D - https://yaobank.${LABNAME}.training.tigera.ca/ | grep -i '^x-version' | tr -d '\r'
 done | sort | uniq -c
@@ -982,7 +1223,7 @@ done | sort | uniq -c
 
 ```bash
 # 100/0 (roll back to v1)
-kubectl -n yaobank patch httproute yaobank --type=json -p='[{"op":"replace","path":"/spec/rules/0/backendRefs/0/weight","value":100},{"op":"replace","path":"/spec/rules/0/backendRefs/1/weight","value":0}]'
+dana -n yaobank patch httproute yaobank --type=json -p='[{"op":"replace","path":"/spec/rules/0/backendRefs/0/weight","value":100},{"op":"replace","path":"/spec/rules/0/backendRefs/1/weight","value":0}]'
 for i in $(seq 1 300); do
   curl -s --cacert tls.crt -o /dev/null -D - https://yaobank.${LABNAME}.training.tigera.ca/ | grep -i '^x-version' | tr -d '\r'
 done | sort | uniq -c
@@ -994,8 +1235,10 @@ ________________________________________________________________________________
 
 Remove the canary only. **Keep** the Gateway, the Manager route and yaobank: later modules use them.
 
+> **Role: Dana (yaobank developer)**
+
 ```yaml
-kubectl apply -f - <<EOF
+dana apply -f - <<EOF
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
@@ -1016,11 +1259,11 @@ EOF
 ```
 
 ```bash
-kubectl -n yaobank delete deployment customer-v2
-kubectl -n yaobank delete service customer-v2
+dana -n yaobank delete deployment customer-v2
+dana -n yaobank delete service customer-v2
 ```
 
-Validate (three listeners with one route each; yaobank answers):
+**Validate** (three listeners with one route each; yaobank answers):
 
 ```bash
 gw_listeners
@@ -1035,6 +1278,5 @@ http: attachedRoutes=1  Programmed=True  ResolvedRefs=True (ResolvedRefs)
 ```
 
 > **Note:** Never delete the `GatewayAPI` resource, the `EnvoyProxy` or the `calico-ingress` namespace to clean up. That removes the front door for the Manager UI and every application behind it.
-
 
 > **Congratulations! You have completed `6. Calico Ingress Gateway` lab.**

@@ -7,13 +7,11 @@ This lab provides the instructions to:
 * [Install Calico Enterprise command line utility "calicoctl"](#install-calico-enterprise-command-line-utility-calicoctl)
 * [Deploy a three-tier sample application called "yaobank" (Yet Another Online Bank)](#deploy-a-three-tier-sample-application-called-yaobank-yet-another-online-bank)
 
-
 ### Overview
 
 Container Network Interface is an initiative from the Cloud-Native Computing Foundation. It is a set of interface standards that define how the container runtime engine (docker, cri-o, containerd, others) and the cni plugin work together to dynamically connect a pod to the network. Kubernetes defines the specification of the network model, but the actual implementation of the network model is abstracted from Kubernetes and Kubernetes uses the CNI for that. Upstream Kubernetes by default does not provide a network interface plugin. In this lab, we will walk through the process of installing Calico Enterprise as the CNI and security policy provider.
 
 **Lab environment.** The commands in this lab are run from a **bastion** host (where `kubectl`, `calicoctl`, and `oc` are available). The cluster has one **control-plane node** (`control1`, `10.0.1.20`) and two **worker nodes**, all in AWS. Two things are pre-provisioned for you and referenced in later sections: an external **AWS EC2 load balancer** that fronts the worker nodes on port 443, and a wildcard **DNS** record `*.<LABNAME>.training.tigera.ca` pointing at it — that is how you reach the Manager UI once ingress is configured. Replace `<LABNAME>` with your lab instance name wherever it appears.
-
 
 _______________________________________________________________________________________________________________________________________________________________
 
@@ -44,7 +42,6 @@ sudo apt-get install bash-completion
 source /usr/share/bash-completion/bash_completion
 echo 'source <(kubectl completion bash)' >>~/.bashrc
 source ~/.bashrc
-
 ```
 
 #### Verify the nodes are NotReady
@@ -54,6 +51,7 @@ To validate that the CNI plugin is not installed in this cluster, run the follow
 ```bash
 kubectl get nodes
 ```
+
 ```bash
 NAME                                      STATUS     ROLES                  AGE     VERSION
 ip-10-0-1-20.eu-west-1.compute.internal   NotReady   control-plane,master   2m21s   v1.23.14
@@ -88,7 +86,6 @@ spec:
   persistentVolumeReclaimPolicy: Recycle
   storageClassName: tigera-elasticsearch
 EOF
-
 ```
 
 #### Verify the StorageClass
@@ -98,6 +95,7 @@ Make sure the StorageClass has been created successfully.
 ```bash
 kubectl get storageclass
 ```
+
 ```bash
 NAME                   PROVISIONER                    RECLAIMPOLICY   VOLUMEBINDINGMODE      ALLOWVOLUMEEXPANSION   AGE
 tigera-elasticsearch   kubernetes.io/no-provisioner   Delete          WaitForFirstConsumer   false                  25s
@@ -105,9 +103,8 @@ tigera-elasticsearch   kubernetes.io/no-provisioner   Delete          WaitForFir
 
 #### Install the Tigera Operator CRDs and operator
 
-The Tigera Operator is a Kubernetes operator and provides a well-defined API for how you install, configure, and run Calico Enterprise. Tigera operator also automates and controls the the lifecycle of a Calico Enterprise deployment. `tigera-operator` deployment has the necessary Calico Enterprise custom resource definitons built into and once it is deployed, it will deploy these CRDs. 
-**Note:** The CRDs can also be deployed separately through Calico Enterprise docs site if there is a need.
-
+The Tigera Operator is a Kubernetes operator and provides a well-defined API for how you install, configure, and run Calico Enterprise. Tigera operator also automates and controls the the lifecycle of a Calico Enterprise deployment. `tigera-operator` deployment has the necessary Calico Enterprise custom resource definitons built into and once it is deployed, it will deploy these CRDs.
+> **Note:** The CRDs can also be deployed separately through Calico Enterprise docs site if there is a need.
 
 ```bash
 kubectl create -f https://downloads.tigera.io/ee/$CE_VERSION/manifests/tigera-operator.yaml
@@ -127,11 +124,12 @@ tigera-operator-74575475cc-t5hkp   1/1     Running   0          10s   10.0.1.30 
 ```
 
 Valdiate `tigera-operator` deployed the required CRDs.
-**Note:** `tigera-operator` must stand up to be able to deploy the CRDs and the following output can take a little bit of time to show up.
+> **Note:** `tigera-operator` must stand up to be able to deploy the CRDs and the following output can take a little bit of time to show up.
 
 ```bash
 kubectl get crds | grep -E 'tigera|calico'
 ```
+
 You should see an output similar to the following.
 
 ```bash
@@ -215,7 +213,6 @@ Calico Enterprise Manager UI uses Prometheus to provide out-of-the-box metrics i
 
   **Note:** Prometheus operator that ships with Calico Enterprise is an optional component and can be replaced with the customer's Prometheus operator if needed.   However, a Prometheus operator must be deployed in the cluster and watch the "tigera-prometheus" namespace to deploy the required Prometheus and Alertmanager   resources. Customer's instance of Prometheus operator can be deployed in any namesapce.
 
-
 ```bash
 kubectl create -f https://downloads.tigera.io/ee/$CE_VERSION/manifests/tigera-prometheus-operator.yaml
 ```
@@ -225,6 +222,7 @@ kubectl create -f https://downloads.tigera.io/ee/$CE_VERSION/manifests/tigera-pr
 ```bash
 kubectl get pods -n tigera-prometheus
 ```
+
 ```bash
 NAME                                          READY   STATUS    RESTARTS   AGE
 calico-prometheus-operator-6557c5bc57-6l2l8   0/1     Pending   0          7s
@@ -278,6 +276,7 @@ Run the following command to find the cluster-cidr (pod-network-cidr) that was u
 ```bash
 kubectl cluster-info dump | grep -m 2 -E "service-cluster-ip-range|cluster-cidr"
 ```
+
 ```bash
 $ kubectl cluster-info dump | grep -m 2 -E "service-cluster-ip-range|cluster-cidr"
                             "--service-cluster-ip-range=10.49.0.0/16",
@@ -312,7 +311,6 @@ spec:
       natOutgoing: Enabled
       nodeSelector: all()
 EOF
-
 ```
 
 #### Install the Calico Enterprise custom resources
@@ -332,6 +330,7 @@ Watch the status of various components progressing. We need to wait for at least
 ```bash
 watch kubectl get pods -A
 ```
+
 ```bash
 Every 2.0s: kubectl get pods -A                                                                                                                                                                                                                                                                                                         bastion: Wed Dec 28 23:50:12 2022
 
@@ -369,13 +368,14 @@ tigera-kibana          tigera-secure-kb-667c47d7f8-7hg98                        
 tigera-kibana          tigera-secure-kb-667c47d7f8-j2jpv                                    1/1     Running     0             9m37s
 tigera-operator        tigera-operator-7dcc7bdd7-8w2fl                                      1/1     Running     0             62m
 tigera-prometheus      calico-prometheus-operator-f8c8cb45c-8pgss                           1/1     Running     0             100s
-
 ```
+
 Alternatively, you could use the following command to watch the status of various Calico Enteprise components progress.
 
 ```bash
 watch kubectl get tigerastatus
 ```
+
 ```bash
 Every 2.0s: kubectl get tigerastatus                                                                                                                                                                                                                                                                                                    bastion: Wed Dec 28 23:57:31 2022
 
@@ -407,6 +407,7 @@ watch kubectl get tigerastatus
 ```
 
 You should see an output similar to the following, which denotes Calico Enterprise is fully deployed in the cluster.
+
 ```bash
 NAME                          AVAILABLE   PROGRESSING   DEGRADED   SINCE   MESSAGE
 apiserver                     True        False         False      4h15m   All objects available
@@ -428,7 +429,6 @@ tiers                         True        False         False      4h15m   All o
 ```
 
 _______________________________________________________________________________________________________________________________________________________________________
-
 
 ### Install Calico Enterprise command line utility "calicoctl"
 
@@ -460,6 +460,7 @@ We also need to make sure the `Cluster Calico Enterprise Version` matches the ca
 ```bash
 calicoctl version
 ```
+
 ```bash
 Client Version:    v3.23.1-calient-0.dev-88-gfb99b157539b
 Release:           Calico Enterprise
@@ -478,7 +479,6 @@ yaobank is a sample application, which consists of 3 microservices explained bel
 * Customer (provides a simple web GUI)
 * Summary (provides some middleware business logic)
 * Database (peovides the persistent datastore for the bank)
-
 
 The following diagram shows the logical diagram of the application.
 
@@ -659,7 +659,6 @@ spec:
         - containerPort: 80
 ---
 EOF
-
 ```
 
 #### Verify the yaobank pods are running
@@ -669,6 +668,7 @@ Check the status of the pods. Make sure all the pods are in Running status.
 ```bash
 watch kubectl get pods -n yaobank -o wide
 ```
+
 ```bash
 NAME                        READY   STATUS    RESTARTS   AGE   IP            NODE                                      NOMINATED NODE   READINESS GATES
 customer-687b8d8f74-lmzqz   1/1     Running   0          38s   10.48.0.20    ip-10-0-1-31.eu-west-1.compute.internal   <none>           <none>
@@ -681,17 +681,16 @@ summary-7579bd9566-cj4v4    1/1     Running   0          38s   10.48.0.205   ip-
 
 For now, the application we deployed is only accesible from outside the cluster through a NodePort. We can try the following port on any of the cluster nodes to access the customer pod, which is the frontend app. Following is trying the NodePort on the master node.
 
-**Note:** You need to ssh in the `control1` node first by running `ssh control1`.
+> **Note:** You need to ssh in the `control1` node first by running `ssh control1`.
 
 ```bash
 ssh control1
-
 ```
 
 ```bash
 curl 10.0.1.20:30180
-
 ```
+
 ```bash
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
   "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
@@ -719,7 +718,5 @@ curl 10.0.1.20:30180
   </body>
 </html>
 ```
-
-
 
 > **Congratulations! You have completed `1. Install Calico Enterprise` lab.**

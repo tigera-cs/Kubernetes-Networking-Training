@@ -1,13 +1,12 @@
 # Kubernetes Networking Training
+
 This is the hands-on lab guide for Calico Networking Training.
 
 ## Lab setup
 
 The following diagram depicts the lab setup used for the entire training.
 
-![image](img/1.Lab-Topology.JPG)
-
-
+<a href="img/lab-topology.png"><img src="img/lab-topology.png" alt="Lab topology" width="75%"></a>
 
 Followings is a short description of each node in the lab.
 
@@ -26,23 +25,22 @@ Followings are the CIDRs used to build the training lab environment.
 
 To ssh into the lab instances, type the following commands. The associated IP addresses are included in the lab setup diagram.
 
-* ssh control1 
+* ssh control1
 * ssh worker1
 * ssh worker2
 
-
 ## Lab modules
 
-[1. Install Calico Enterprise](./1.Install-Calico-Enterprise/README.md)
+[1.Install Calico Enterprise](./1.Install-Calico-Enterprise/README.md)
 
-[2. Implement pod networking using Calico Enterprise CNI and IPAM](./2.Implement-pod-networking-using-Calico-Enterprise-CNI-and-IPAM/README.md)
+[2.Implement pod networking using Calico Enterprise CNI and IPAM](./2.Implement-pod-networking-using-Calico-Enterprise-CNI-and-IPAM/README.md)
 
-[3. Cross Node Connectivity](./3.Cross-Node-Connectivity/README.md)
+[3.Cross Node Connectivity](./3.Cross-Node-Connectivity/README.md)
 
-[4. Kubernetes Services and CE Service Advertisement](./4.Kubernetes-Services-and-CE-Service-Advertisement/README.md)
+[4.Kubernetes Services and CE Service Advertisement](./4.Kubernetes-Services-and-CE-Service-Advertisement/README.md)
 
-[5. Calico Enterprise Egress Gateway](./5.Calico-Enterprise-Egress-Gateway/README.md)
+[5.Calico Enterprise Egress Gateway](./5.Calico-Enterprise-Egress-Gateway/README.md)
 
-[6. Calico Ingress Gateway](./6.Calico-Ingress-Gateway/README.md)
+[6.Calico Ingress Gateway](./6.Calico-Ingress-Gateway/README.md)
 
-[7. Implement Calico Enterprise eBPF](./7.Implement-Calico-Enterprise-eBPF/README.md)
+[7.Implement Calico Enterprise eBPF](./7.Implement-Calico-Enterprise-eBPF/README.md)

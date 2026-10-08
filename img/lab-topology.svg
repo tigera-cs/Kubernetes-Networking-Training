@@ -1,0 +1,118 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="2400" height="1380" viewBox="0 0 1200 690" font-family="Poppins, 'Segoe UI', Helvetica, Arial, sans-serif">
+  <title>Calico Enterprise networking training: lab topology</title>
+  <defs>
+    <style>@font-face{font-family:'Poppins';font-weight:400;src:url(data:font/woff;base64,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) format('woff');}@font-face{font-family:'Poppins';font-weight:700;src:url(data:font/woff;base64,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) format('woff');}</style>
+    <marker id="arrow-navy" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#09287D"/>
+    </marker>
+    <marker id="arrow-orange" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#D9861A"/>
+    </marker>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="130%">
+      <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#09287D" flood-opacity="0.18"/>
+    </filter>
+  </defs>
+
+  <!-- Background -->
+  <rect x="0" y="0" width="1200" height="690" rx="16" fill="#FFFFFF"/>
+  <rect x="0.5" y="0.5" width="1199" height="689" rx="16" fill="none" stroke="#D5DEE8"/>
+
+  <!-- Title -->
+  <text x="40" y="52" font-size="26" font-weight="700" fill="#1E4E79">Lab topology</text>
+  <text x="40" y="78" font-size="14" fill="#595959">One lab instance per trainee · all commands run from the bastion</text>
+
+  <!-- Kubernetes cluster -->
+  <rect x="380" y="100" width="780" height="480" rx="14" fill="#EEF5FB" stroke="#1084B7" stroke-width="2"/>
+  <g transform="translate(404,118)">
+    <!-- simple helm-wheel mark -->
+    <circle cx="13" cy="13" r="13" fill="#326CE5"/>
+    <circle cx="13" cy="13" r="6" fill="none" stroke="#FFFFFF" stroke-width="2"/>
+    <g stroke="#FFFFFF" stroke-width="2" stroke-linecap="round">
+      <line x1="13" y1="3" x2="13" y2="7"/><line x1="13" y1="19" x2="13" y2="23"/>
+      <line x1="3" y1="13" x2="7" y2="13"/><line x1="19" y1="13" x2="23" y2="13"/>
+      <line x1="6" y1="6" x2="9" y2="9"/><line x1="17" y1="17" x2="20" y2="20"/>
+      <line x1="20" y1="6" x2="17" y2="9"/><line x1="9" y1="17" x2="6" y2="20"/>
+    </g>
+  </g>
+  <text x="442" y="137" font-size="17" font-weight="700" fill="#09287D">Kubernetes cluster</text>
+  <text x="442" y="156" font-size="12.5" fill="#595959">Calico Enterprise CNI and network policy</text>
+
+  <!-- control-plane to worker links -->
+  <path d="M720,275 C720,322 570,322 570,370" fill="none" stroke="#9FB3C8" stroke-width="2"/>
+  <path d="M820,275 C820,322 970,322 970,370" fill="none" stroke="#9FB3C8" stroke-width="2"/>
+
+  <!-- control1 -->
+  <g filter="url(#shadow)">
+    <rect x="650" y="185" width="240" height="90" rx="12" fill="#09287D"/>
+  </g>
+  <text x="770" y="218" text-anchor="middle" font-size="20" font-weight="700" fill="#FFFFFF">control1</text>
+  <text x="770" y="241" text-anchor="middle" font-size="16" fill="#FFFFFF">10.0.1.20</text>
+  <text x="770" y="261" text-anchor="middle" font-size="12.5" fill="#C9D6F2">Kubernetes control plane</text>
+
+  <!-- worker1 -->
+  <g filter="url(#shadow)">
+    <rect x="450" y="370" width="240" height="90" rx="12" fill="#1084B7"/>
+  </g>
+  <text x="570" y="403" text-anchor="middle" font-size="20" font-weight="700" fill="#FFFFFF">worker1</text>
+  <text x="570" y="426" text-anchor="middle" font-size="16" fill="#FFFFFF">10.0.1.30</text>
+  <text x="570" y="446" text-anchor="middle" font-size="12.5" fill="#DDEFF7">application workloads</text>
+
+  <!-- worker2 -->
+  <g filter="url(#shadow)">
+    <rect x="850" y="370" width="240" height="90" rx="12" fill="#1084B7"/>
+  </g>
+  <text x="970" y="403" text-anchor="middle" font-size="20" font-weight="700" fill="#FFFFFF">worker2</text>
+  <text x="970" y="426" text-anchor="middle" font-size="16" fill="#FFFFFF">10.0.1.31</text>
+  <text x="970" y="446" text-anchor="middle" font-size="12.5" fill="#DDEFF7">application workloads</text>
+
+  <!-- in-cluster networks -->
+  <rect x="470" y="526" width="600" height="34" rx="17" fill="#FFFFFF" stroke="#BFD3E6"/>
+  <text x="770" y="548" text-anchor="middle" font-size="13.5" fill="#1E4E79">Pods <tspan font-weight="700">10.48.0.0/16</tspan>   ·   Services <tspan font-weight="700">10.49.0.0/16</tspan></text>
+
+  <!-- bastion -->
+  <g filter="url(#shadow)">
+    <rect x="60" y="130" width="230" height="122" rx="12" fill="#FBAE40"/>
+  </g>
+  <text x="175" y="162" text-anchor="middle" font-size="20" font-weight="700" fill="#09287D">bastion</text>
+  <text x="175" y="185" text-anchor="middle" font-size="16" fill="#09287D">10.0.1.10</text>
+  <text x="175" y="210" text-anchor="middle" font-size="12.5" fill="#09287D">you run kubectl · calicoctl here</text>
+  <text x="175" y="230" text-anchor="middle" font-size="12.5" fill="#09287D">BIRD upstream router · AS 64512</text>
+
+  <!-- bastion -> control1 (API) -->
+  <path d="M290,230 L644,230" fill="none" stroke="#09287D" stroke-width="2.5" marker-end="url(#arrow-navy)"/>
+  <text x="520" y="220" text-anchor="middle" font-size="13" fill="#09287D">kubectl · calicoctl</text>
+
+  <!-- bastion <-> nodes BGP -->
+  <path d="M250,252 C250,330 330,345 444,400" fill="none" stroke="#D9861A" stroke-width="2" stroke-dasharray="7 5" marker-end="url(#arrow-orange)"/>
+  <text x="236" y="282" text-anchor="end" font-size="12.5" fill="#B5650A">BGP peering with</text>
+  <text x="236" y="298" text-anchor="end" font-size="12.5" fill="#B5650A">all three nodes</text>
+  <text x="236" y="314" text-anchor="end" font-size="12.5" fill="#B5650A">(modules 3–5)</text>
+
+  <!-- AWS load balancer -->
+  <g filter="url(#shadow)">
+    <rect x="60" y="372" width="230" height="86" rx="12" fill="#FFFFFF" stroke="#D9861A" stroke-width="2"/>
+  </g>
+  <text x="175" y="404" text-anchor="middle" font-size="17" font-weight="700" fill="#1E4E79">AWS load balancer</text>
+  <text x="175" y="426" text-anchor="middle" font-size="12.5" fill="#595959">forwards TCP :443</text>
+  <text x="175" y="443" text-anchor="middle" font-size="12.5" fill="#595959">to the worker nodes</text>
+
+  <!-- LB -> workers -->
+  <path d="M290,415 L444,415" fill="none" stroke="#09287D" stroke-width="2.5" marker-end="url(#arrow-navy)"/>
+  <text x="334" y="435" text-anchor="middle" font-size="13" font-weight="700" fill="#09287D">:443</text>
+  <path d="M290,440 C470,515 900,515 966,466" fill="none" stroke="#09287D" stroke-width="2.5" marker-end="url(#arrow-navy)"/>
+  <text x="700" y="486" text-anchor="middle" font-size="13" font-weight="700" fill="#09287D">:443</text>
+
+  <!-- browser -->
+  <g filter="url(#shadow)">
+    <rect x="60" y="508" width="230" height="72" rx="12" fill="#FFFFFF" stroke="#9FB3C8" stroke-width="1.5"/>
+  </g>
+  <text x="175" y="536" text-anchor="middle" font-size="16" font-weight="700" fill="#1E4E79">Your browser</text>
+  <text x="175" y="558" text-anchor="middle" font-size="11" fill="#595959">https://*.&lt;LABNAME&gt;.training.tigera.ca</text>
+  <path d="M175,508 L175,465" fill="none" stroke="#09287D" stroke-width="2.5" marker-end="url(#arrow-navy)"/>
+
+  <!-- Legend -->
+  <g font-size="13" fill="#595959">
+    <rect x="60" y="610" width="1080" height="50" rx="10" fill="#F6F8FB" stroke="#E1E7EE"/>
+    <text x="84" y="640"><tspan font-weight="700" fill="#1E4E79">Networks</tspan>   Hosts 10.0.1.0/24 (AWS subnet)   ·   Pods 10.48.0.0/16 (kubeadm --pod-network-cidr)   ·   Services 10.49.0.0/16 (kubeadm --service-cidr)</text>
+  </g>
+</svg>

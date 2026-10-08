@@ -6,20 +6,15 @@ This lab provides the instructions to:
 * [Examine pod network connectivity using Calico Enterprise CNI](#examine-pod-network-connectivity-using-calico-enterprise-cni)
 * [Create an aditional Calico Enterprise IPPool](#create-an-aditional-calico-enterprise-ippool)
 
-
 ### Overview
 
 Calico is one of the most popular open-source CNI plugins available for the Kubernetes ecosystem. Calico provides a performant, scalable, and pluggable CNI solution with advanced network administration capabilities. Like other CNI solutions, Calico CNI configures the pod IP address and updates the pod and node routing table to establish pod networking. However, there are some differences between how various CNI providers implement pod networking in a Kubernetes system. This lab covers how Calico CNI and IPAM implement pod networing and walk you through some of the advanced IPAM capabilities and use cases.
 
-
-
 _______________________________________________________________________________________________________________________________________________________________________
-
-
 
 ### Examine pod network connectivity using Calico Enterprise CNI
 
-As discussed in the previous lab, upstream Kubernetes by default does not provide a network interface plugin. In the previous lab, we deployed Calico Enterprise as the CNI provider, which enables pod networking. In this section, we will focus on Kubernetes pod networking by:   
+As discussed in the previous lab, upstream Kubernetes by default does not provide a network interface plugin. In the previous lab, we deployed Calico Enterprise as the CNI provider, which enables pod networking. In this section, we will focus on Kubernetes pod networking by:
 
 * Examining what the network looks like from the perspecitve of a pod (the pod network namespace)
 * Examining what the network looks like from the perspecitve of the host (the host network namespace)
@@ -31,15 +26,17 @@ Each pod gets its own Linux network namespace, which you can think of as giving 
 ```bash
 kubectl get pods -n yaobank -l app=customer -o wide
 ```
+
 ```bash
 NAME                        READY   STATUS    RESTARTS   AGE    IP           NODE                                      NOMINATED NODE   READINESS GATES
 customer-687b8d8f74-lmzqz   1/1     Running   0          129m   10.48.0.20   ip-10-0-1-31.eu-west-1.compute.internal   <none>           <none>
 ```
+
 Note the node on which the pod is running on (`ip-10-0-1-31.eu-west-1.compute.internal` in this example)
 
 #### Exec into the customer pod
 
-Use `kubectl` to exec into the pod so we can check the pod networking details. 
+Use `kubectl` to exec into the pod so we can check the pod networking details.
 
 ```bash
 kubectl exec -ti -n yaobank $(kubectl get pods -n yaobank -l app=customer -o name) -- bash
@@ -52,6 +49,7 @@ First we will use `ip addr` to list the addresses and associated network interfa
 ```bash
 ip addr
 ```
+
 ```bash
 1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 qdisc noqueue state UNKNOWN group default qlen 1000
     link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00
@@ -75,6 +73,7 @@ Next let's look more closely at the interfaces using `ip link`.  We will use the
 ```bash
 ip -c link
 ```
+
 ```bash
 1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 qdisc noqueue state UNKNOWN mode DEFAULT group default qlen 1000
     link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00
@@ -95,10 +94,12 @@ Finally, let's look at the routes the pod sees.
 ```bash
 ip route
 ```
+
 ```bash
 default via 169.254.1.1 dev eth0 
 169.254.1.1 dev eth0  scope link
 ```
+
 This shows that the pod's default route is out over the `eth0` interface. i.e. Anytime it wants to send traffic to anywhere other than itself, it will send the traffic over `eth0`.
 
 We've finished our tour of the pod's view of the network. Let's exit out of the exec mode to return to bastion host.
@@ -178,7 +179,6 @@ ip -c link
 Looking at interface number 28 in this example we see `caliaa83cb3d2b3` which links to `@if3` in network namespace ID 18 (the customer pod's network namespace).  You may recall that interface 3 in the pod's network namespace was `eth0`, so this looks exactly as expected for the veth pair that connects the customer pod to the host network namespace.  
 You can also see the host end of the veth pairs to other pods running on this node, all beginning with `cali`.
 
-
 #### Recall the customer pod's IP address
 
 Let examine the node routing table. First let's remind ourselves of the `customer` pod's IP address.
@@ -186,6 +186,7 @@ Let examine the node routing table. First let's remind ourselves of the `custome
 ```bash
 kubectl get pods -n yaobank -l app=customer -o wide
 ````
+
 ```bash
 NAME                        READY   STATUS    RESTARTS   AGE    IP           NODE                                      NOMINATED NODE   READINESS GATES
 customer-687b8d8f74-lmzqz   1/1     Running   0          148m   10.48.0.20   ip-10-0-1-31.eu-west-1.compute.internal   <none>           <none>
@@ -198,6 +199,7 @@ Now lets look at the routes on the node, where the customer pod is running. SSH 
 ```bash
 ip route
 ```
+
 ```bash
 default via 10.0.1.1 dev ens5 proto dhcp src 10.0.1.31 metric 100 
 10.0.1.0/24 dev ens5 proto kernel scope link src 10.0.1.31 
@@ -237,13 +239,13 @@ ip route get 10.48.0.20
 
 #### Understand the BGP-learned routes
 
-We can also see several routes labelled `proto bird`. These are routes to pods on other nodes that Calico has learned over BGP. 
+We can also see several routes labelled `proto bird`. These are routes to pods on other nodes that Calico has learned over BGP.
 
 To understand this better, consider this route in the example output above `10.48.0.192/26 via 10.0.1.30 dev ens5 proto bird`. It indicates pods with IP addresses falling within the `10.48.0.192/26` CIDR can be reached via `10.0.1.30` through the `ens5` network interface (the host's main interface to the rest of the network). You should see similar routes in your output for each node.
 
 #### Understand Calico route aggregation
 
-Calico uses route aggregation to reduce the number of routes when possible. (e.g. `/26` in this example). The `/26` corresponds to the default block size that Calico IPAM (IP Address Management) allocates on demand as nodes need pod IP addresses. (If desired, the block size can be configured in Calico IPAM settings.)  
+Calico uses route aggregation to reduce the number of routes when possible. (e.g. `/26` in this example). The `/26` corresponds to the default block size that Calico IPAM (IP Address Management) allocates on demand as nodes need pod IP addresses. (If desired, the block size can be configured in Calico IPAM settings.)
 
 #### Understand the blackhole route
 
@@ -255,7 +257,7 @@ If Calico IPAM runs out of blocks to allocate to nodes, then it will use unused 
 
 #### Return to the bastion host
 
-Exit from the worker node's ssh and get back to bastion host terminal. 
+Exit from the worker node's ssh and get back to bastion host terminal.
 
 ```bash
 exit
@@ -328,8 +330,7 @@ Note the relevant information in the manifest:
 * natOutgoing: specifies if SNAT should happen when pods try to connect to destination outside the cluster. `natOutgoing` must be set to `true` when using overlay networking mode for external connectivity.
 * nodeSelector: selects the nodes that Calico IPAM should assign addresses from this pool to.
 
-
-**Note:** You can also get IPPool information using `calicotctl` instead of `kubectl` in the previous command. If you use Openshift, you can replace `kubectl` with `oc`.
+> **Note:** You can also get IPPool information using `calicotctl` instead of `kubectl` in the previous command. If you use Openshift, you can replace `kubectl` with `oc`.
 
 In this cluster, Calico Enteprise has been configured to allocate IP addresses for pods from the `10.48.0.0/24` CIDR, which is a subset of the `10.48.0.0/16` configured through the Kubernetes APIServer.
 
@@ -340,7 +341,6 @@ We have the following address ranges configured in this cluster.
 | 10.48.0.0/16 | Kubernetes Pod Network (via kubeadm `--pod-network-cidr`) |
 | 10.48.0.0/24 | Calico - Initial default IPPool                           |
 | 10.49.0.0/16 | Kubernetes Service Network (via kubeadm `--service-cidr`) |
-
 
 #### Create a new IPPool
 
@@ -359,8 +359,8 @@ spec:
   natOutgoing: true
   nodeSelector: all()
 EOF
-
 ```
+
 You should receive an output similar to the following.
 
 ```bash
@@ -374,13 +374,14 @@ Check the IPPools that exist in the cluster.
 ```bash
 calicoctl get ippools
 ```
+
 ```bash
 NAME                  CIDR             SELECTOR   
 default-ipv4-ippool   10.48.0.0/24     all()      
 pool2-ipv4-ippool     10.48.128.0/24   all()
 ```
 
-**Note:** You can also use the following command to list IPPOOLs.
+> **Note:** You can also use the following command to list IPPOOLs.
 
 ```bash
 kubectl get ippools
@@ -388,20 +389,22 @@ kubectl get ippools
 
 #### Review the new yaobank IPPool annotations
 
-There is a new version of the yaobank application that is configured for specific IP address treatment. We have configured the yaobank manifest with the necessary annotation to use the newly created IPPool. Note that annotations are configured only for summary and database deployment. Customer deployment can receive its IP address from any IPPool. Examine the annotation section of the deployments below and get yourself familiar with the configurations. 
+There is a new version of the yaobank application that is configured for specific IP address treatment. We have configured the yaobank manifest with the necessary annotation to use the newly created IPPool. Note that annotations are configured only for summary and database deployment. Customer deployment can receive its IP address from any IPPool. Examine the annotation section of the deployments below and get yourself familiar with the configurations.
 
 #### Delete the old yaobank deployment
 
-Before deploying the new version of yaobank application, let's delete the old version to avoid any conflicts. 
+Before deploying the new version of yaobank application, let's delete the old version to avoid any conflicts.
 
 ```bash
 kubectl delete namespace yaobank
 ```
+
 You should receive an output similar to the following. This command might take about 1-2 minutes to complete. Please wait util the namespace and all of the resources assocaited within it are deleted.
 
 ```bash
 namespace "yaobank" deleted
 ```
+
 #### Deploy the new version of yaobank
 
 Now implement the new version of the app.
@@ -581,7 +584,6 @@ spec:
         - containerPort: 80
 ---
 EOF
-
 ```
 
 You should receive an output similar to the following.
@@ -613,7 +615,6 @@ customer-687b8d8f74-tcclp   1/1     Running   0          16s   10.48.0.43      i
 database-75ccfdc84f-hqr64   1/1     Running   0          16s   10.48.128.0     ip-10-0-1-31.eu-west-1.compute.internal   <none>           <none>
 summary-7d78c9976b-sxv4k    1/1     Running   0          16s   10.48.128.192   ip-10-0-1-30.eu-west-1.compute.internal   <none>           <none>
 summary-7d78c9976b-wjdd5    1/1     Running   0          16s   10.48.128.1     ip-10-0-1-31.eu-west-1.compute.internal   <none>           <none>
-
 ```
 
 You can see that Pod IP address assignment is aligned with the IPAM configurations defined in manifest above, assigning pods of a deployment to the correct IPPool. Calico IPAM provides the flexibility of assigning IPPools to namespaces, deployment, deamonset, etc. You can also implement topology based IP address assignment in which racks or nodes in specific racks receive their IP addresses from one or more specific IPPools. For more information, visit the following link.
@@ -626,7 +627,6 @@ To check the IPAM allocations in the cluster, run the following command.
 
 ```bash
 calicoctl ipam show
-
 ```
 
 ```bash
@@ -644,8 +644,8 @@ Use `calicoctl` help to learn about subcommands available to `calicoctl ipam`. P
 
 ```bash
 calicoctl ipam -h
-
 ```
+
 ```bash
 Set the Calico datastore access information in the environment variables or
 supply details in a config file.
