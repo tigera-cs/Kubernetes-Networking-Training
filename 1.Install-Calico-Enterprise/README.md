@@ -1,4 +1,6 @@
-# In this lab
+# Module 1: Install Calico Enterprise
+
+## In this lab
 
 This lab provides the instructions to:
 
@@ -7,19 +9,21 @@ This lab provides the instructions to:
 * [Install Calico Enterprise command line utility "calicoctl"](#install-calico-enterprise-command-line-utility-calicoctl)
 * [Deploy a three-tier sample application called "yaobank" (Yet Another Online Bank)](#deploy-a-three-tier-sample-application-called-yaobank-yet-another-online-bank)
 
-### Overview
+---
+
+## Overview
 
 Container Network Interface is an initiative from the Cloud-Native Computing Foundation. It is a set of interface standards that define how the container runtime engine (docker, cri-o, containerd, others) and the cni plugin work together to dynamically connect a pod to the network. Kubernetes defines the specification of the network model, but the actual implementation of the network model is abstracted from Kubernetes and Kubernetes uses the CNI for that. Upstream Kubernetes by default does not provide a network interface plugin. In this lab, we will walk through the process of installing Calico Enterprise as the CNI and security policy provider.
 
-**Lab environment.** The commands in this lab are run from a **bastion** host (where `kubectl`, `calicoctl`, and `oc` are available). The cluster has one **control-plane node** (`control1`, `10.0.1.20`) and two **worker nodes**, all in AWS. Two things are pre-provisioned for you and referenced in later sections: an external **AWS EC2 load balancer** that fronts the worker nodes on port 443, and a wildcard **DNS** record `*.<LABNAME>.training.tigera.ca` pointing at it — that is how you reach the Manager UI once ingress is configured. Replace `<LABNAME>` with your lab instance name wherever it appears.
+**Lab environment.** The commands in this lab are run from a **bastion** host (where `kubectl`, `calicoctl`, and `oc` are available). The cluster has one **control-plane node** (`control1`, `10.0.1.20`) and two **worker nodes**, all in AWS. Two things are pre-provisioned for you and referenced in later sections: an external **AWS EC2 load balancer** that fronts the worker nodes on port 443, and a wildcard **DNS** record `*.<LABNAME>.training.tigera.ca` pointing at it — that is how you follow the Calico Ingress Gateway training labs. Replace `<LABNAME>` with your lab instance name wherever it appears.
 
-_______________________________________________________________________________________________________________________________________________________________
+---
 
-### Install Calico Enterprise
+## Install Calico Enterprise
 
- In this lab environment, Kubernetes has been preinstalled, but as your network plugin is not installed yet your nodes will appear as NotReady. This section walks you through the required steps to install Calico Enteprise as both the CNI provider and network policy engine provider.
+In this lab environment, Kubernetes has been preinstalled, but as your network plugin is not installed yet your nodes will appear as NotReady. This section walks you through the required steps to install Calico Enterprise as both the CNI provider and network policy engine provider.
 
-#### Set the Calico Enterprise version
+### 1. Set the Calico Enterprise version
 
 Throughout this section you will download several Calico Enterprise manifests, and each manifest URL includes the product version. Rather than hardcoding the version in every command, set it once as an environment variable now. Every `kubectl create`/`curl` command below references `${CE_VERSION}`, so you can retarget the whole install at a different release by changing this single value.
 
@@ -27,13 +31,14 @@ Throughout this section you will download several Calico Enterprise manifests, a
 export CE_VERSION=v3.24.0-2.0
 ```
 
-> **Note:** Set `CE_VERSION` to the Calico Enterprise version your lab targets. Run the remaining commands in this section in the **same shell session** so the variable stays in scope. Confirm it is set before continuing:
+> [!NOTE]
+> Set `CE_VERSION` to the Calico Enterprise version your lab targets. Run the remaining commands in this section in the **same shell session** so the variable stays in scope. Confirm it is set before continuing:
 
 ```bash
 echo $CE_VERSION
 ```
 
-#### Enable kubectl autocompletion
+### 2. Enable kubectl autocompletion
 
 Before getting started, let's enable bash autocomplete for kubectl so that we can easier interact with kubectl.
 
@@ -44,7 +49,7 @@ echo 'source <(kubectl completion bash)' >>~/.bashrc
 source ~/.bashrc
 ```
 
-#### Verify the nodes are NotReady
+### 3. Verify the nodes are NotReady
 
 To validate that the CNI plugin is not installed in this cluster, run the following command. All the cluster nodes' STATUS should appear as NotReady.
 
@@ -52,16 +57,18 @@ To validate that the CNI plugin is not installed in this cluster, run the follow
 kubectl get nodes
 ```
 
-```bash
+**Example output:**
+
+```text
 NAME                                      STATUS     ROLES                  AGE     VERSION
 ip-10-0-1-20.eu-west-1.compute.internal   NotReady   control-plane,master   2m21s   v1.23.14
 ip-10-0-1-30.eu-west-1.compute.internal   NotReady   <none>                 117s    v1.23.14
 ip-10-0-1-31.eu-west-1.compute.internal   NotReady   <none>                 117s    v1.23.14
 ```
 
-#### Create persistent storage for Elasticsearch
+### 4. Create persistent storage for Elasticsearch
 
-Calico Enterprise uses ElasticSearch to store various logs such as flowlogs, DNS logs, and all others that it collects over the network. ElasticSearch requires persistent storage to store the data. This lab uses host path storage provisioner, which is not suitable for production enviroment and can result in scalability issues, instability, and data loss.
+Calico Enterprise uses ElasticSearch to store various logs such as flowlogs, DNS logs, and all others that it collects over the network. ElasticSearch requires persistent storage to store the data. For the sake of simplicity, this lab uses host path storage provisioner, which is not suitable for production environment and can result in scalability issues, instability, and data loss.
 
 ```yaml
 kubectl apply -f - <<EOF
@@ -88,7 +95,7 @@ spec:
 EOF
 ```
 
-#### Verify the StorageClass
+### 5. Verify the StorageClass
 
 Make sure the StorageClass has been created successfully.
 
@@ -96,21 +103,24 @@ Make sure the StorageClass has been created successfully.
 kubectl get storageclass
 ```
 
-```bash
+**Example output:**
+
+```text
 NAME                   PROVISIONER                    RECLAIMPOLICY   VOLUMEBINDINGMODE      ALLOWVOLUMEEXPANSION   AGE
 tigera-elasticsearch   kubernetes.io/no-provisioner   Delete          WaitForFirstConsumer   false                  25s
 ```
 
-#### Install the Tigera Operator CRDs and operator
+### 6. Install the Tigera Operator CRDs and operator
 
-The Tigera Operator is a Kubernetes operator and provides a well-defined API for how you install, configure, and run Calico Enterprise. Tigera operator also automates and controls the the lifecycle of a Calico Enterprise deployment. `tigera-operator` deployment has the necessary Calico Enterprise custom resource definitons built into and once it is deployed, it will deploy these CRDs.
-> **Note:** The CRDs can also be deployed separately through Calico Enterprise docs site if there is a need.
+The Tigera Operator is a Kubernetes operator and provides a well-defined API for how you install, configure, and run Calico Enterprise. Tigera operator also automates and controls the lifecycle of a Calico Enterprise deployment. `tigera-operator` deployment has the necessary Calico Enterprise custom resource definitions built into and once it is deployed, it will deploy these CRDs.
+> [!NOTE]
+> The CRDs can also be deployed separately through Calico Enterprise docs site if there is a need.
 
 ```bash
 kubectl create -f https://downloads.tigera.io/ee/$CE_VERSION/manifests/tigera-operator.yaml
 ```
 
-#### Verify the Tigera Operator is running
+### 7. Verify the Tigera Operator is running
 
 Validate that the tigera-operator is running in the cluster. Note that the tigera-operator is running even though there is no CNI plugin deployed in the cluster. This is because tigera-operator is host networked meaning that it uses the host IP address to communicate over the network.
 
@@ -118,13 +128,16 @@ Validate that the tigera-operator is running in the cluster. Note that the tiger
 kubectl get pods -n tigera-operator -o wide
 ```
 
-```bash
+**Example output:**
+
+```text
 NAME                               READY   STATUS    RESTARTS   AGE   IP          NODE                                      NOMINATED NODE   READINESS GATES
 tigera-operator-74575475cc-t5hkp   1/1     Running   0          10s   10.0.1.30   ip-10-0-1-30.eu-west-1.compute.internal   <none>           <none>
 ```
 
-Valdiate `tigera-operator` deployed the required CRDs.
-> **Note:** `tigera-operator` must stand up to be able to deploy the CRDs and the following output can take a little bit of time to show up.
+Validate `tigera-operator` deployed the required CRDs.
+> [!NOTE]
+> `tigera-operator` must stand up to be able to deploy the CRDs and the following output can take a little bit of time to show up.
 
 ```bash
 kubectl get crds | grep -E 'tigera|calico'
@@ -132,7 +145,7 @@ kubectl get crds | grep -E 'tigera|calico'
 
 You should see an output similar to the following.
 
-```bash
+```text
 alertexceptions.crd.projectcalico.org                            2026-10-05T17:24:40Z
 apiservers.operator.tigera.io                                    2026-10-05T17:24:40Z
 applicationlayers.operator.tigera.io                             2026-10-05T17:24:41Z
@@ -207,28 +220,31 @@ wafvalidationpolicies.applicationlayer.projectcalico.org         2026-10-05T17:2
 whiskers.operator.tigera.io                                      2026-10-05T17:24:41Z
 ```
 
-#### Install the Prometheus operator
+### 8. Install the Prometheus operator
 
 Calico Enterprise Manager UI uses Prometheus to provide out-of-the-box metrics in the various sections of CE Manager UI such as the dashboard page, security policies, and others. Calico Enterprise uses Prometheus operator to deploy Prometheus server and Alertmanager. Apply the following manifest to deploy the Prometheus operator.
 
-  **Note:** Prometheus operator that ships with Calico Enterprise is an optional component and can be replaced with the customer's Prometheus operator if needed.   However, a Prometheus operator must be deployed in the cluster and watch the "tigera-prometheus" namespace to deploy the required Prometheus and Alertmanager   resources. Customer's instance of Prometheus operator can be deployed in any namesapce.
+> [!NOTE]
+> Prometheus operator that ships with Calico Enterprise is an optional component and can be replaced with the customer's Prometheus operator if needed.   However, a Prometheus operator must be deployed in the cluster and watch the "tigera-prometheus" namespace to deploy the required Prometheus and Alertmanager   resources. Customer's instance of Prometheus operator can be deployed in any namespace.
 
 ```bash
 kubectl create -f https://downloads.tigera.io/ee/$CE_VERSION/manifests/tigera-prometheus-operator.yaml
 ```
 
-#### Check the Prometheus operator pod status
+### 9. Check the Prometheus operator pod status
 
 ```bash
 kubectl get pods -n tigera-prometheus
 ```
 
-```bash
+**Example output:**
+
+```text
 NAME                                          READY   STATUS    RESTARTS   AGE
 calico-prometheus-operator-6557c5bc57-6l2l8   0/1     Pending   0          7s
 ```
 
-#### Understand why the Prometheus operator is Pending
+### 10. Understand why the Prometheus operator is Pending
 
 tigera-prometheus operator should be in the Pending STATUS. Let's run the following command and check the `Events:` section of the pod. As indicated in the Warning message, the pod is not running because two nodes have the taint "node.kubernetes.io/not-ready". The reason for this taint is because the CNI plugin is not running in this cluster yet.
 
@@ -236,14 +252,16 @@ tigera-prometheus operator should be in the Pending STATUS. Let's run the follow
 kubectl describe pods -n tigera-prometheus
 ```
 
-```bash
+**Example output:**
+
+```text
 Events:
   Type     Reason            Age   From               Message
   ----     ------            ----  ----               -------
   Warning  FailedScheduling  18s   default-scheduler  0/3 nodes are available: 1 node(s) had taint {node-role.kubernetes.io/master: }, that the pod didn't tolerate, 2 node(s) had taint {node.kubernetes.io/not-ready: }, that the pod didn't tolerate.
 ```
 
-#### Create the image pull secret
+### 11. Create the image pull secret
 
 This lab directly downloads the images from quay.io/tigera, which requires authentication. Run the following command to create the secret necessary to pull the images.
 
@@ -253,23 +271,23 @@ kubectl create secret generic tigera-pull-secret \
     --type=kubernetes.io/dockerconfigjson -n tigera-operator
 ```
 
-#### Inspect the calico-system namespace
+### 12. Inspect the calico-system namespace
 
-tigera-operator uses custom resouces to deploy the required resources for Calico Enterprise. For example, tigera-operator creates all the the pods in the calico-system namesapce and a number of other resources when it sees the Installation resource in the cluster.
+tigera-operator uses custom resources to deploy the required resources for Calico Enterprise. For example, tigera-operator creates all the pods in the calico-system namespace and a number of other resources when it sees the Installation resource in the cluster.
 
-Run the following command to see if there is any resources in the calico-system namesapce. You should see none.
+Run the following command to see if there is any resources in the calico-system namespace. You should see none.
 
 ```bash
 kubectl get all -n calico-system
 ```
 
-Installation resouce is also responsible for certain install time configuration parameters such as IPPOOL configuration, MTU, and etc. For complete info on the Installation resource configurations, please visit the following link.
+Installation resource is also responsible for certain install time configuration parameters such as IPPOOL configuration, MTU, and etc. For complete info on the Installation resource configurations, please visit the following link.
 
 https://docs.tigera.io/reference/installation/api#operator.tigera.io/v1.Installation
 
 We have customized the installation resource for this lab. We have defined an IPPOOL with the CIDR 10.48.0.0/24. This must be within the range of the pod network CIDR when Kubernetes is bootstrapped. Here we are defining a smaller subnet within the available range as we will be creating additional pools for other purposes in subsequent labs.
 
-#### Find the cluster pod and service CIDRs
+### 13. Find the cluster pod and service CIDRs
 
 Run the following command to find the cluster-cidr (pod-network-cidr) that was used to bootstrap the cluster. You should have a similar output provided below.
 
@@ -277,15 +295,17 @@ Run the following command to find the cluster-cidr (pod-network-cidr) that was u
 kubectl cluster-info dump | grep -m 2 -E "service-cluster-ip-range|cluster-cidr"
 ```
 
-```bash
+**Example output:**
+
+```text
 $ kubectl cluster-info dump | grep -m 2 -E "service-cluster-ip-range|cluster-cidr"
                             "--service-cluster-ip-range=10.49.0.0/16",
                             "--cluster-cidr=10.48.0.0/16"
 ```
 
-#### Create the Installation resource to enable the CNI
+### 14. Create the Installation resource to enable the CNI
 
-Now apply the following manifest, which will create the the Installation custom resource and enables the CNI functionality in the cluster.
+Now apply the following manifest, which will create the Installation custom resource and enables the CNI functionality in the cluster.
 
 ```yaml
 kubectl apply -f -<<EOF
@@ -313,17 +333,18 @@ spec:
 EOF
 ```
 
-#### Install the Calico Enterprise custom resources
+### 15. Install the Calico Enterprise custom resources
 
 Get yourself familiar with the resources in the following manifest and then install the Calico Enterprise custom resources.
 
-  **Note:** We have already customized and deployed the Installation custom resource, which is also available in the following manifest. However, since there is no customization in the following manifest, there is no change in the Installation resource configuration. We will just receive a message that the resource already exist. You will receive an error stating `installations.operator.tigera.io "default" already exists`. Ignore it.
+> [!NOTE]
+> We have already customized and deployed the Installation custom resource, which is also available in the following manifest. However, since there is no customization in the following manifest, there is no change in the Installation resource configuration. We will just receive a message that the resource already exist. You will receive an error stating `installations.operator.tigera.io "default" already exists`. Ignore it.
 
 ```bash
 kubectl create -f https://downloads.tigera.io/ee/${CE_VERSION}/manifests/custom-resources.yaml
 ```
 
-#### Watch the Calico Enterprise components come up
+### 16. Watch the Calico Enterprise components come up
 
 Watch the status of various components progressing. We need to wait for at least one of the tigera-apiserver pods in the tigera-system namespace to be running before applying the tigera licensekey in the next step. The reasons is that the LicenseKey resource uses "projectcalico.org/v3" api, which is managed by the tigera apiserver.
 
@@ -331,7 +352,9 @@ Watch the status of various components progressing. We need to wait for at least
 watch kubectl get pods -A
 ```
 
-```bash
+**Example output:**
+
+```text
 Every 2.0s: kubectl get pods -A                                                                                                                                                                                                                                                                                                         bastion: Wed Dec 28 23:50:12 2022
 
 NAMESPACE              NAME                                                                 READY   STATUS      RESTARTS      AGE
@@ -370,13 +393,15 @@ tigera-operator        tigera-operator-7dcc7bdd7-8w2fl                          
 tigera-prometheus      calico-prometheus-operator-f8c8cb45c-8pgss                           1/1     Running     0             100s
 ```
 
-Alternatively, you could use the following command to watch the status of various Calico Enteprise components progress.
+Alternatively, you could use the following command to watch the status of various Calico Enterprise components progress.
 
 ```bash
 watch kubectl get tigerastatus
 ```
 
-```bash
+**Example output:**
+
+```text
 Every 2.0s: kubectl get tigerastatus                                                                                                                                                                                                                                                                                                    bastion: Wed Dec 28 23:57:31 2022
 
 NAME                  AVAILABLE   PROGRESSING   DEGRADED   SINCE
@@ -390,7 +415,7 @@ manager                                         True
 monitor               True        False         False      7m53s
 ```
 
-#### Apply the Calico Enterprise license
+### 17. Apply the Calico Enterprise license
 
 Apply the LicenseKey to unblock enterprise features of Calico Enterprise.
 
@@ -398,7 +423,7 @@ Apply the LicenseKey to unblock enterprise features of Calico Enterprise.
 kubectl create -f /home/tigera/license.yaml
 ```
 
-#### Confirm all components are Available
+### 18. Confirm all components are Available
 
 Watch the status of various components progressing. Ensure that all the components are AVAILABLE and there is no components in PROGRESSING or DEGRADED status before moving forward. This can take few minutes.
 
@@ -408,7 +433,7 @@ watch kubectl get tigerastatus
 
 You should see an output similar to the following, which denotes Calico Enterprise is fully deployed in the cluster.
 
-```bash
+```text
 NAME                          AVAILABLE   PROGRESSING   DEGRADED   SINCE   MESSAGE
 apiserver                     True        False         False      4h15m   All objects available
 calico                        True        False         False      99m     All objects available
@@ -428,13 +453,13 @@ policy-recommendation         True        False         False      4h13m   All o
 tiers                         True        False         False      4h15m   All objects available
 ```
 
-_______________________________________________________________________________________________________________________________________________________________________
+---
 
-### Install Calico Enterprise command line utility "calicoctl"
+## Install Calico Enterprise command line utility "calicoctl"
 
 calicoctl is the Calico Enterprise specific command line utility that allows you to create, read, update, and delete Calico Enterprise objects from the command line.
 
-#### Download the calicoctl binary
+### 1. Download the calicoctl binary
 
 Download the calicoctl binary for Linux and make it executable. As with the install manifests, the download URL is versioned, so it reuses the `${CE_VERSION}` environment variable you set at the start of this lab (re-export it with `export CE_VERSION=v3.23.1` if you have since opened a new shell).
 
@@ -445,7 +470,7 @@ chmod +x calicoctl
 
 > **Reference:** [Install calicoctl as a binary on a single host](https://docs.tigera.io/calico-enterprise/latest/operations/clis/calicoctl/install#install-calicoctl-as-a-binary-on-a-single-host).
 
-#### Move calicoctl into your PATH
+### 2. Move calicoctl into your PATH
 
 Move the executable into a directory on your `PATH` so you can run it from anywhere.
 
@@ -453,38 +478,40 @@ Move the executable into a directory on your `PATH` so you can run it from anywh
 sudo mv calicoctl /usr/local/bin
 ```
 
-#### Verify the calicoctl version matches the cluster
+### 3. Verify calicoctl is installed correctly
 
-We also need to make sure the `Cluster Calico Enterprise Version` matches the calicoctl version in `Client Version`. Otherwise please raise this to your instructor.
+Make sure calicoctl is installed correctly.
 
 ```bash
 calicoctl version
 ```
 
-```bash
-Client Version:    v3.23.1-calient-0.dev-88-gfb99b157539b
+**Example output:**
+
+```text
+Client Version:    v3.24.0-2.0-calient-1.dev-151-gcec78a0b8a32
 Release:           Calico Enterprise
-Git commit:        fb99b157539ba123c3785e411a8113733a551736
+Git commit:        cec78a0b8a32f0c33739db170ac0133f9a2e63b7
 Cluster Calico Version:               v3.32.0
-Cluster Calico Enterprise Version:    v3.23.1
+Cluster Calico Enterprise Version:    v3.24.0-2.0
 Cluster Type:                         typha,kdd,k8s,operator,bgp,kubeadm
 ```
 
-_______________________________________________________________________________________________________________________________________________________________________
+---
 
-### Deploy a three-tier sample application called "yaobank" (Yet Another Online Bank)
+## Deploy a three-tier sample application called "yaobank" (Yet Another Online Bank)
 
 yaobank is a sample application, which consists of 3 microservices explained below. It will be used throughout the training for various demonstrations.
 
 * Customer (provides a simple web GUI)
 * Summary (provides some middleware business logic)
-* Database (peovides the persistent datastore for the bank)
+* Database (provides the persistent datastore for the bank)
 
-The following diagram shows the logical diagram of the application.
+The diagram below shows the logical layout of the application.
 
 <a href="img/yaobank.png"><img src="img/yaobank.png" alt="yaobank three-tier application" width="1000"></a>
 
-#### Deploy the yaobank application
+### 1. Deploy the yaobank application
 
 Install the application by applying the following manifest in the cluster.
 
@@ -661,7 +688,7 @@ spec:
 EOF
 ```
 
-#### Verify the yaobank pods are running
+### 2. Verify the yaobank pods are running
 
 Check the status of the pods. Make sure all the pods are in Running status.
 
@@ -669,7 +696,9 @@ Check the status of the pods. Make sure all the pods are in Running status.
 watch kubectl get pods -n yaobank -o wide
 ```
 
-```bash
+**Example output:**
+
+```text
 NAME                        READY   STATUS    RESTARTS   AGE   IP            NODE                                      NOMINATED NODE   READINESS GATES
 customer-687b8d8f74-lmzqz   1/1     Running   0          38s   10.48.0.20    ip-10-0-1-31.eu-west-1.compute.internal   <none>           <none>
 database-545f6d6d95-khwr2   1/1     Running   0          38s   10.48.0.19    ip-10-0-1-31.eu-west-1.compute.internal   <none>           <none>
@@ -677,21 +706,19 @@ summary-7579bd9566-866km    1/1     Running   0          38s   10.48.0.21    ip-
 summary-7579bd9566-cj4v4    1/1     Running   0          38s   10.48.0.205   ip-10-0-1-30.eu-west-1.compute.internal   <none>           <none>
 ```
 
-#### Access yaobank through its NodePort
+### 3. Access yaobank through its NodePort
 
-For now, the application we deployed is only accesible from outside the cluster through a NodePort. We can try the following port on any of the cluster nodes to access the customer pod, which is the frontend app. Following is trying the NodePort on the master node.
+For now, the application we deployed is only accessible from outside the cluster through a NodePort. We can try the following port on any of the cluster nodes to access the customer pod, which is the frontend app. Following is trying the NodePort on the master node.
 
-> **Note:** You need to ssh in the `control1` node first by running `ssh control1`.
-
-```bash
-ssh control1
-```
+Run the following command from the bastion host.
 
 ```bash
 curl 10.0.1.20:30180
 ```
 
-```bash
+**Example output:**
+
+```text
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
   "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
 
@@ -720,3 +747,7 @@ curl 10.0.1.20:30180
 ```
 
 > **Congratulations! You have completed `1. Install Calico Enterprise` lab.**
+
+---
+
+[Training overview](../README.md) | [Next: 2. Implement pod networking using Calico Enterprise CNI and IPAM →](../2.Implement-pod-networking-using-Calico-Enterprise-CNI-and-IPAM/README.md)
