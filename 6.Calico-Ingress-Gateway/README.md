@@ -40,7 +40,12 @@ In real clusters, ingress is shared by different teams with different jobs. The 
 | **Paul**, platform team | `paul` | The shared Gateway (`calico-ingress`) and the TLS certificates (`calico-ingress-certs`) | Add the yaobank listener, its certificate and ReferenceGrant (Pattern 2), and the HTTP to HTTPS redirect (Pattern 3) |
 | **Dana**, yaobank developer | `dana` | The yaobank application and its routes (`yaobank`) | Deploy yaobank and its HTTPRoute (Pattern 2), and run the canary release (Pattern 4) |
 
-Paul and Dana are not real accounts. `paul` and `dana` are shortcuts for `kubectl --as=paul --as-group=platform-team` and `kubectl --as=dana --as-group=yaobank-dev`: Kubernetes runs the command **as that person** and checks it against their RBAC permissions. A command outside their job fails with `Forbidden`, exactly as it would for a real teammate. Status checks (`gw_listeners`, `route_status`) and `curl` tests are run as yourself.
+Paul and Dana are not real accounts. `paul` and `dana` are shortcuts for `kubectl --as=paul --as-group=platform-team` and `kubectl --as=dana --as-group=yaobank-dev`: Kubernetes runs the command **as that person** and checks it against their RBAC permissions. A command outside their job fails with `Forbidden`, exactly as it would for a real teammate.
+
+Paul and Dana make the changes. Checking the results is not part of their job, so you always do it yourself, even in a step that starts with **Role: Dana** or **Role: Paul**:
+
+- The status shortcuts `gw_listeners` and `route_status` use plain `kubectl`, so they run with your cluster admin permissions. Don't put `paul` or `dana` in front of them.
+- The `curl` tests are ordinary HTTP requests from the bastion to the Gateway. They don't go through the Kubernetes API, so RBAC doesn't apply to them.
 
 Each step starts with a line showing whose turn it is, for example:
 
@@ -188,9 +193,6 @@ spec:
                         add: ["NET_BIND_SERVICE"]
 EOF
 ```
-
-> [!NOTE]
-> Host-network mode runs Envoy as a DaemonSet, and Calico Enterprise adds its WAF and L7 log collector only to Envoy running as a Deployment (pod-network mode). Traffic through this Gateway is not inspected by the WAF and produces no L7 logs.
 
 **Validate** (the operator finished; the GatewayClass is accepted):
 

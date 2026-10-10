@@ -31,7 +31,7 @@ kubectl patch felixconfiguration.p default --type='merge' -p '{"spec":{"egressIP
 
 Egress gateways use the IPPool resource for a particular application when it connects outside of the cluster. Run the following command to create the egress gateway IPPool.
 
-* `blockSize: 32` allocates the pool one IP address at a time, so each egress gateway pod gets its own address.
+* `blockSize: 32` makes every IPAM block a single address. Calico hands out the pool one `/32` at a time instead of giving one node the whole range, so egress gateway pods on different nodes can each take an address from this small pool.
 * `nodeSelector: "!all()"` stops Calico from using this pool for ordinary pods; only pods that explicitly ask for it (the egress gateways) get addresses from it.
 
 ```yaml
@@ -322,13 +322,15 @@ ip route
 
 ```text
 default via 10.0.1.1 dev ens5 proto dhcp src 10.0.1.10 metric 100 
-10.0.1.0/24 dev ens5 proto kernel scope link src 10.0.1.10 
+10.0.0.2 via 10.0.1.1 dev ens5 proto dhcp src 10.0.1.10 metric 100 
+10.0.1.0/24 dev ens5 proto kernel scope link src 10.0.1.10 metric 100 
 10.0.1.1 dev ens5 proto dhcp scope link src 10.0.1.10 metric 100 
-10.10.10.0 via 10.0.1.31 dev ens5 proto bird 
-10.48.2.216/29 via 10.0.1.31 dev ens5 proto bird 
+10.10.10.2 via 10.0.1.30 dev ens5 proto bird 
+10.48.2.88/29 via 10.0.1.31 dev ens5 proto bird 
 10.49.0.0/16 proto bird 
-        nexthop via 10.0.1.20 dev ens5 weight 1 
-        nexthop via 10.0.1.31 dev ens5 weight 1
+	nexthop via 10.0.1.20 dev ens5 weight 1 
+	nexthop via 10.0.1.30 dev ens5 weight 1 
+	nexthop via 10.0.1.31 dev ens5 weight 1 
 ```
 
 ### 13. Start a netcat listener on the bastion
@@ -501,7 +503,7 @@ EOF
 
 ### 25. Observe the egress gateway becomes non-ready
 
-The ICMP probe `timeoutSeconds` is `15` by default. It should take about 15-20s after implementing the above policy for the egress gateway pod to show as non-ready as depicted below.
+Once pings fail for 15 seconds (`timeoutSeconds`), the egress gateway reports itself unhealthy. Kubernetes marks the pod non-ready after three failed readiness checks, 30 seconds apart, so expect about 1 to 2 minutes, as depicted below.
 
 ```bash
 watch kubectl get pods -n default -l egress-code=red -o wide

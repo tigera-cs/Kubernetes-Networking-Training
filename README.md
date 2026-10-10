@@ -8,7 +8,7 @@ This is the hands-on lab guide for Calico Networking Training.
 
 The following diagram depicts the lab setup used for the entire training.
 
-<a href="img/lab-topology.png"><img src="img/lab-topology.png" alt="Lab topology" width="1200"></a>
+<a href="img/lab-topology.svg"><img src="img/lab-topology.svg" alt="Lab topology" width="1200"></a>
 
 The following is a short description of each node in the lab.
 
