@@ -63,10 +63,10 @@ Three one-time steps on the bastion.
 
 Every hostname in this lab ends in `<LABNAME>.training.tigera.ca`. Save your lab instance name in a variable; the commands and manifests below use `${LABNAME}`, so you never edit them by hand. The first command also saves it in `~/.bashrc`, so it is still set if you open a new terminal or reconnect.
 
-Run this line on its own, not pasted together with anything else: it prompts for the name, and whatever line follows it in a paste would be taken as the answer. Type your lab instance name and press Enter. It refuses an empty name, and running it again replaces the saved value.
+Run this line on its own, not pasted together with anything else: it prompts for the name, and whatever line follows it in a paste would be taken as the answer. Type your lab instance name and press Enter. The name must be a single DNS label (lower-case letters, digits and hyphens, no dots): anything else is refused with a message, and running the line again replaces the saved value.
 
 ```bash
-read -r -p 'Lab instance name: ' LABNAME && [ -n "$LABNAME" ] && sed -i '/^export LABNAME=/d' ~/.bashrc && echo "export LABNAME='${LABNAME}'" >> ~/.bashrc
+read -r -p 'Lab instance name: ' LABNAME && [[ "$LABNAME" =~ ^[a-z0-9-]+$ ]] && sed -i '/^export LABNAME=/d' ~/.bashrc && echo "export LABNAME='${LABNAME}'" >> ~/.bashrc || echo 'Nothing saved: the name must be lower-case letters, digits and hyphens only. Run this line again.'
 ```
 
 Now load it and check it:
@@ -80,7 +80,7 @@ echo "manager.${LABNAME}.training.tigera.ca"
 The last command should print your Manager UI hostname, for example `manager.mylab.training.tigera.ca`, with your lab name in the middle rather than an empty label.
 
 > [!NOTE]
-> If a command later fails with a hostname such as `manager..training.tigera.ca` (two dots), `LABNAME` is empty in your shell. Run `source ~/.bashrc` and try again. The same fix applies if `gw_listeners`, `route_status`, `paul` or `dana` reports `command not found`.
+> If a command later fails with a hostname such as `manager..training.tigera.ca` (two dots), `LABNAME` is empty in your shell. Run `source ~/.bashrc`; if the hostname is still wrong, nothing was saved, so run the line in step 1 again. The `source ~/.bashrc` fix also applies if `gw_listeners`, `route_status`, `paul` or `dana` reports `command not found`.
 
 ### 2. Add two status shortcuts
 
