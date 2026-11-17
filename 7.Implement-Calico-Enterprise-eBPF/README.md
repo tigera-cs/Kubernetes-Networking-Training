@@ -794,7 +794,7 @@ exit
 
 ### 5. Remove the lab policy
 
-The `default.customer` policy from step 14 was created only to observe policy enforcement in the eBPF dataplane. Remove it so the cluster returns to the policy state it had at the start of this module. The `kubernetes-services-endpoint` ConfigMap from step 3 can stay; the operator ignores it while kube-proxy is running.
+The `default.customer` policy from step 14 was created only to observe policy enforcement in the eBPF dataplane. Remove it so the cluster returns to the policy state it had at the start of this module. The `kubernetes-services-endpoint` ConfigMap from step 3 can stay: it remains in effect and is harmless, calico-node simply keeps talking to the API server address directly.
 
 ```bash
 kubectl -n yaobank delete networkpolicies.projectcalico.org default.customer

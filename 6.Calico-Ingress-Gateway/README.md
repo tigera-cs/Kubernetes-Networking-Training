@@ -63,13 +63,21 @@ Three one-time steps on the bastion.
 
 Every hostname in this lab ends in `<LABNAME>.training.tigera.ca`. Save your lab instance name in a variable; the commands and manifests below use `${LABNAME}`, so you never edit them by hand. The first command also saves it in `~/.bashrc`, so it is still set if you open a new terminal or reconnect.
 
+Run this line on its own, not pasted together with anything else: it prompts for the name, and whatever line follows it in a paste would be taken as the answer. Type your lab instance name and press Enter. It refuses an empty name, and running it again replaces the saved value.
+
 ```bash
-read -p 'Lab instance name: ' LABNAME && echo "export LABNAME=${LABNAME}" >> ~/.bashrc
+read -r -p 'Lab instance name: ' LABNAME && [ -n "$LABNAME" ] && sed -i '/^export LABNAME=/d' ~/.bashrc && echo "export LABNAME='${LABNAME}'" >> ~/.bashrc
+```
+
+Now load it and check it:
+
+```bash
 source ~/.bashrc
+grep '^export LABNAME=' ~/.bashrc
 echo "manager.${LABNAME}.training.tigera.ca"
 ```
 
-Type your lab instance name at the prompt and press Enter. The last command should print your Manager UI hostname, for example `manager.mylab.training.tigera.ca`, with your lab name in the middle rather than an empty label.
+The last command should print your Manager UI hostname, for example `manager.mylab.training.tigera.ca`, with your lab name in the middle rather than an empty label.
 
 > [!NOTE]
 > If a command later fails with a hostname such as `manager..training.tigera.ca` (two dots), `LABNAME` is empty in your shell. Run `source ~/.bashrc` and try again. The same fix applies if `gw_listeners`, `route_status`, `paul` or `dana` reports `command not found`.
@@ -699,11 +707,11 @@ Paul keeps the platform's certificates in their own namespace, `calico-ingress-c
 openssl req -x509 -nodes -days 365 -newkey rsa:2048 -keyout tls.key -out tls.crt \
   -subj "/CN=*.${LABNAME}.training.tigera.ca" \
   -addext "subjectAltName=DNS:*.${LABNAME}.training.tigera.ca"
-paul -n calico-ingress-certs create secret tls wildcard-tls --cert=tls.crt --key=tls.key
+paul -n calico-ingress-certs create secret tls wildcard-tls --cert=tls.crt --key=tls.key --dry-run=client -o yaml | paul apply -f -
 rm -f tls.key
 ```
 
-The private key now lives only in the Secret; the last line removes the copy on the bastion. Keep `tls.crt`, the later `curl --cacert tls.crt` checks use it.
+The private key now lives only in the Secret; the last line removes the copy on the bastion. Keep `tls.crt`, the later `curl --cacert tls.crt` checks use it. The `--dry-run=client -o yaml | apply` form means the block is safe to run again: a re-run replaces the Secret with the newly generated pair instead of failing with `AlreadyExists`, so `tls.crt` on disk always matches what the Gateway serves.
 
 ### 4. Add the yaobank listener
 

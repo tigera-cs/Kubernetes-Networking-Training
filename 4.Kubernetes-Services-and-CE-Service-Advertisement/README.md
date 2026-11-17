@@ -367,7 +367,7 @@ default via 10.0.1.1 dev ens5 proto dhcp src 10.0.1.10 metric 100
 10.48.2.88/29 via 10.0.1.31 dev ens5 proto bird 
 ```
 
-### 2. Confirm there are no BGP configurations
+### 2. Check the default BGPConfiguration
 
 Run the following command and check which BGPConfiguration resources exist in your cluster. The operator creates the `default` one at install time; it is the resource you patch in the next step.
 
@@ -571,10 +571,10 @@ The two main advantages of using `externalTrafficPolicy: Local` in this way are:
 
 In the previous labs, we accessed the yaobank frontend UI using curl from the `control1` node and we also mentioned that we can try any other cluster node IP address to hit the NodePort. As we've now set `externalTrafficPolicy: Local`, this will no longer work since there are no `customer` pods hosted on `control1`. Accessing the NodePort can only happen via the cluster node that is hosting the endpoint at this point.
 
-The following should fail because of `externalTrafficPolicy: Local` configured on the `customer` service.
+The following should time out after 5 seconds because of `externalTrafficPolicy: Local` configured on the `customer` service: kube-proxy drops NodePort traffic on a node that has no local endpoint, it does not reject it.
 
 ```bash
-curl 10.0.1.20:30180
+curl --max-time 5 10.0.1.20:30180
 ```
 
 ### 5. Verify the NodePort succeeds on the node hosting the endpoint
