@@ -792,12 +792,21 @@ The `tc:` section should no longer list any `cali_tc_preamble` programs. Exit th
 exit
 ```
 
-### 5. Restart pods to recover long-lived connections
+### 5. Remove the lab policy
 
-Switching from `eBPF` to `iptables` dataplane is disruptive. Long-lived connections can't be recovered unless the application pods are reconnected on their own, preventing a restart. Otherwise, these pods need to be restart to recover long living connections. Use the following command to restart all the pods.
+The `default.customer` policy from step 14 was created only to observe policy enforcement in the eBPF dataplane. Remove it so the cluster returns to the policy state it had at the start of this module. The `kubernetes-services-endpoint` ConfigMap from step 3 can stay; the operator ignores it while kube-proxy is running.
 
 ```bash
- kubectl delete pods -A --all --force --grace-period=0
+kubectl -n yaobank delete networkpolicies.projectcalico.org default.customer
+```
+
+### 6. Restart pods to recover long-lived connections
+
+Switching from the `eBPF` to the `iptables` dataplane is disruptive. Application pods that hold long-lived connections cannot recover them unless they reconnect on their own, so restart the application deployments. Use a rolling restart, which replaces the pods gracefully. Do not force-delete every pod in the cluster: that also kills the Calico, operator and Elasticsearch pods without a grace period and can leave the cluster in a bad state.
+
+```bash
+kubectl -n yaobank rollout restart deployment
+kubectl -n yaobank rollout status deployment --timeout=120s
 ```
 
 > **Congratulations! You have completed `7. Implement Calico Enterprise eBPF` lab.**

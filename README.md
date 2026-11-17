@@ -37,6 +37,8 @@ ssh worker1
 ssh worker2
 ```
 
+The Calico Enterprise version used throughout the training is set once, as the `CE_VERSION` variable in step 1 of module 1. Every later command that needs the version reads that variable, so do not retype the version anywhere else.
+
 ---
 
 ## Lab modules

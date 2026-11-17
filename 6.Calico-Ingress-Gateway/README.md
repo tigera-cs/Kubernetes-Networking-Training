@@ -64,12 +64,12 @@ Three one-time steps on the bastion.
 Every hostname in this lab ends in `<LABNAME>.training.tigera.ca`. Save your lab instance name in a variable; the commands and manifests below use `${LABNAME}`, so you never edit them by hand. The first command also saves it in `~/.bashrc`, so it is still set if you open a new terminal or reconnect.
 
 ```bash
-echo 'export LABNAME=<your lab instance name>' >> ~/.bashrc
+read -p 'Lab instance name: ' LABNAME && echo "export LABNAME=${LABNAME}" >> ~/.bashrc
 source ~/.bashrc
 echo "manager.${LABNAME}.training.tigera.ca"
 ```
 
-The last command should print your Manager UI hostname, for example `manager.mylab.training.tigera.ca`.
+Type your lab instance name at the prompt and press Enter. The last command should print your Manager UI hostname, for example `manager.mylab.training.tigera.ca`, with your lab name in the middle rather than an empty label.
 
 > [!NOTE]
 > If a command later fails with a hostname such as `manager..training.tigera.ca` (two dots), `LABNAME` is empty in your shell. Run `source ~/.bashrc` and try again. The same fix applies if `gw_listeners`, `route_status`, `paul` or `dana` reports `command not found`.
@@ -140,21 +140,38 @@ metadata:
 spec:
   gatewayClasses:
   - name: tigera-gateway-class
-    gatewayKind: DaemonSet           # must match the EnvoyProxy (envoyDaemonSet) in step 3
+    gatewayKind: DaemonSet           # must match the EnvoyProxy (envoyDaemonSet) in step 4
     envoyProxyRef:
       namespace: calico-ingress
       name: envoy-hostnet
 EOF
 ```
 
-**Validate** (the CRDs exist; `DEGRADED=True` is expected until step 3):
+**Validate** (the CRDs exist; `DEGRADED=True` is expected until step 4):
 
 ```bash
 kubectl get crd envoyproxies.gateway.envoyproxy.io gatewayclasses.gateway.networking.k8s.io
 kubectl get tigerastatus gatewayapi
 ```
 
-### 3. Create the host-network EnvoyProxy
+### 3. Confirm the worker nodes carry the worker role label
+
+The `EnvoyProxy` in the next step pins the Envoy DaemonSet to nodes that carry the `node-role.kubernetes.io/worker` label. kubeadm does not add that label by itself; the lab image is expected to, so confirm it before you continue.
+
+```bash
+kubectl get nodes -l node-role.kubernetes.io/worker
+```
+
+You must see both worker nodes. If the command returns `No resources found`, label every node that is not a control-plane node and run the check again:
+
+```bash
+kubectl label nodes -l '!node-role.kubernetes.io/control-plane' node-role.kubernetes.io/worker=
+kubectl get nodes -l node-role.kubernetes.io/worker
+```
+
+Without this label no Envoy pod is scheduled, and every `curl` in this module and in module 7 fails with a connection error.
+
+### 4. Create the host-network EnvoyProxy
 
 The `EnvoyProxy` says **how** Envoy runs: as a DaemonSet on the worker nodes, on the host network, binding listener ports such as 443 and 80 directly on each node.
 
@@ -683,7 +700,10 @@ openssl req -x509 -nodes -days 365 -newkey rsa:2048 -keyout tls.key -out tls.crt
   -subj "/CN=*.${LABNAME}.training.tigera.ca" \
   -addext "subjectAltName=DNS:*.${LABNAME}.training.tigera.ca"
 paul -n calico-ingress-certs create secret tls wildcard-tls --cert=tls.crt --key=tls.key
+rm -f tls.key
 ```
+
+The private key now lives only in the Secret; the last line removes the copy on the bastion. Keep `tls.crt`, the later `curl --cacert tls.crt` checks use it.
 
 ### 4. Add the yaobank listener
 
@@ -1318,6 +1338,15 @@ http: attachedRoutes=1  Programmed=True  ResolvedRefs=True (ResolvedRefs)
 
 > [!WARNING]
 > Never delete the `GatewayAPI` resource, the `EnvoyProxy` or the `calico-ingress` namespace to clean up. That removes the front door for the Manager UI and every application behind it.
+
+### Revoke the Manager UI login
+
+The `tigercub` service account from Pattern 1 holds the `tigera-network-admin` role, and its token is valid for 24 hours. Remove both now that you are done with the Manager UI. If you need the UI again later, recreate them with the three commands in Pattern 1.
+
+```bash
+kubectl delete clusterrolebinding tigercub-bind
+kubectl delete sa tigercub
+```
 
 > **Congratulations! You have completed `6. Calico Ingress Gateway` lab.**
 

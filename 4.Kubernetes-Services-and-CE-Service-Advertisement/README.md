@@ -369,10 +369,10 @@ default via 10.0.1.1 dev ens5 proto dhcp src 10.0.1.10 metric 100
 
 ### 2. Confirm there are no BGP configurations
 
-Run the following command and ensure that there is no bgpconfigurations in your cluster.
+Run the following command and check which BGPConfiguration resources exist in your cluster. The operator creates the `default` one at install time; it is the resource you patch in the next step.
 
 > [!NOTE]
-> A BGPConfiguration resource (BGPConfiguration) represents BGP specific configuration options for the cluster or a specific node. The resource with the name `default` has a specific meaning and contains the BGP global default configuration. By default, there is no BGPConfiguration resource deployed in the cluster. However, Once BGP is activated, Calico has default built-in configurations for BGP in its data model. For example, it use 64512 as the default AS number.
+> A BGPConfiguration resource (BGPConfiguration) represents BGP specific configuration options for the cluster or a specific node. The resource with the name `default` has a specific meaning and contains the BGP global default configuration. In Calico Enterprise the tigera-operator creates the `default` resource at install time. Calico also has built-in defaults for BGP in its data model, for example 64512 as the default AS number, which apply to anything the resource does not set.
 
 ```bash
 kubectl get bgpconfigurations

@@ -82,7 +82,7 @@ spec:
     spec:
       containers:
       - name: app1
-        image: praqma/network-multitool
+        image: wbitt/network-multitool:latest
         env:
         - name: HTTP_PORT
           value: "1180"
@@ -227,7 +227,7 @@ spec:
   - name: bgp-large-community
     value: 64512:120
   prefixAdvertisements:
-  - cidr: 10.10.10.0/31
+  - cidr: 10.10.10.0/30
     communities:
     - bgp-large-community
     - 64512:120

@@ -143,7 +143,7 @@ exit
 
 Use the following command to configure the default IPPool to use vxlanMode by setting `vxlanMode: Always`.
 > [!NOTE]
-> Pay attention to how we use the installation resource using the installation resource. The reason is that this resource was created using the installation resource by the tigera-operator and hence it is managed by tigera-operator.
+> Pay attention to how we change this setting through the Installation resource. The default IPPool was created from the Installation resource by the tigera-operator, so it is managed by the operator and must be changed there.
 
 ```bash
 kubectl patch installation default --type=json \
@@ -630,7 +630,7 @@ spec:
     spec:
       containers:
       - name: nginx
-        image: nginx
+        image: nginx:1.28
         imagePullPolicy: IfNotPresent
 EOF
 ```
@@ -639,7 +639,6 @@ You should receive an output similar to the following.
 
 ```text
 deployment.apps/nginx created
-networkpolicy.networking.k8s.io/nginx created
 ```
 
 ### 4. Check the bastion routing table for the new route

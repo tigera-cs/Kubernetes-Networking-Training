@@ -323,7 +323,8 @@ spec:
   imagePullSecrets:
     - name: tigera-pull-secret
   calicoNetwork:
-    # Note: The ipPools section cannot be modified post-install.
+    # Note: the ipPools section is managed by the operator. Later modules change it by
+    # patching this Installation resource, not by editing the IPPool directly.
     ipPools:
     - blockSize: 26
       cidr: 10.48.0.0/24
@@ -461,7 +462,7 @@ calicoctl is the Calico Enterprise specific command line utility that allows you
 
 ### 1. Download the calicoctl binary
 
-Download the calicoctl binary for Linux and make it executable. As with the install manifests, the download URL is versioned, so it reuses the `${CE_VERSION}` environment variable you set at the start of this lab (re-export it with `export CE_VERSION=v3.23.1` if you have since opened a new shell).
+Download the calicoctl binary for Linux and make it executable. As with the install manifests, the download URL is versioned, so it reuses the `${CE_VERSION}` environment variable you set at the start of this lab. If you have since opened a new shell, re-export it with the exact value shown in step 1 of this lab, so that calicoctl matches the cluster version.
 
 ```bash
 curl -o calicoctl -L https://downloads.tigera.io/ee/binaries/${CE_VERSION}/calicoctl

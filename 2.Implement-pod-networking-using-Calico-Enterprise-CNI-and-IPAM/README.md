@@ -359,7 +359,7 @@ Note the relevant information in the manifest:
 * `nodeSelector`: a label selector that picks the nodes Calico IPAM may assign addresses from this pool to. Default `all()`, which means every node.
 
 > [!NOTE]
-> You can also get IPPool information using `calicotctl` instead of `kubectl` in the previous command. If you use Openshift, you can replace `kubectl` with `oc`.
+> You can also get IPPool information using `calicoctl` instead of `kubectl` in the previous command. If you use Openshift, you can replace `kubectl` with `oc`.
 
 In this cluster, Calico Enterprise has been configured to allocate IP addresses for pods from the `10.48.0.0/24` CIDR, which is a subset of the `10.48.0.0/16` configured through the Kubernetes APIServer.
 
